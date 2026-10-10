@@ -1,6 +1,7 @@
 """
 
 Copyright (c) 2020 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -27,13 +28,13 @@ import logging
 import os
 import random
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge, Timer
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiLiteBus, AxiLiteMaster
 
@@ -45,7 +46,7 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         self.axil_master = AxiLiteMaster(AxiLiteBus.from_prefix(dut, "s_axil"), dut.clk, dut.rst)
 
@@ -61,7 +62,7 @@ class TB(object):
             self.axil_master.read_if.r_channel.set_pause_generator(generator())
 
     async def cycle_reset(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -143,11 +144,11 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
             addr = offset+random.randint(0, aperture-length)
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await Timer(random.randint(1, 100), 'ns')
+            await Timer(random.randint(1, 100), unit='ns')
 
             await master.write(addr, test_data)
 
-            await Timer(random.randint(1, 100), 'ns')
+            await Timer(random.randint(1, 100), unit='ns')
 
             data = await master.read(addr, length)
             assert data.data == test_data
@@ -158,7 +159,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
         workers.append(cocotb.start_soon(worker(tb.axil_master, k*0x1000, 0x1000, count=16)))
 
     while workers:
-        await workers.pop(0).join()
+        await workers.pop(0)
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -168,20 +169,20 @@ def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
-    for test in [run_test_write, run_test_read]:
+    test_params = cocotb.parametrize(
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+    )
 
-        factory = TestFactory(test)
-        factory.add_option("idle_inserter", [None, cycle_pause])
-        factory.add_option("backpressure_inserter", [None, cycle_pause])
-        factory.generate_tests()
+    run_test_write = cocotb.test(test_params(run_test_write))
+    run_test_read = cocotb.test(test_params(run_test_read))
 
-    factory = TestFactory(run_stress_test)
-    factory.generate_tests()
+    run_stress_test = cocotb.test(run_stress_test)
 
 
-# cocotb-test
+# cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
 rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
@@ -209,12 +210,22 @@ def test_axil_ram(request, data_width):
     sim_build = os.path.join(tests_dir, "sim_build",
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNSIGNED"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=tests_dir,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

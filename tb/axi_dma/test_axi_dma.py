@@ -1,6 +1,7 @@
 """
 
 Copyright (c) 2020 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,14 +27,14 @@ import itertools
 import logging
 import os
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiBus, AxiRam
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiStreamSink
@@ -57,7 +58,7 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         # read interface
         self.read_desc_source = DescSource(DescBus.from_prefix(dut, "s_axis_read_desc"), dut.clk, dut.rst)
@@ -72,9 +73,9 @@ class TB(object):
         # AXI interface
         self.axi_ram = AxiRam(AxiBus.from_prefix(dut, "m_axi"), dut.clk, dut.rst, size=2**16)
 
-        dut.read_enable.setimmediatevalue(0)
-        dut.write_enable.setimmediatevalue(0)
-        dut.write_abort.setimmediatevalue(0)
+        dut.read_enable.value = Immediate(0)
+        dut.write_enable.value = Immediate(0)
+        dut.write_abort.value = Immediate(0)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -92,7 +93,7 @@ class TB(object):
             self.axi_ram.read_if.ar_channel.set_pause_generator(generator())
 
     async def cycle_reset(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -212,17 +213,18 @@ def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
-    for test in [run_test_write, run_test_read]:
+    test_params = cocotb.parametrize(
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+    )
 
-        factory = TestFactory(test)
-        factory.add_option("idle_inserter", [None, cycle_pause])
-        factory.add_option("backpressure_inserter", [None, cycle_pause])
-        factory.generate_tests()
+    run_test_write = cocotb.test(test_params(run_test_write))
+    run_test_read = cocotb.test(test_params(run_test_read))
 
 
-# cocotb-test
+# cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
 rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
@@ -270,12 +272,22 @@ def test_axi_dma(request, axi_data_width, unaligned):
     sim_build = os.path.join(tests_dir, "sim_build",
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-CASEINCOMPLETE", "-Wno-UNSIGNED"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=tests_dir,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

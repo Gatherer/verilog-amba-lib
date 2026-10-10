@@ -1,6 +1,7 @@
 """
 
 Copyright (c) 2023 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,15 +27,15 @@ import itertools
 import logging
 import os
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 
 from cocotb.queue import Queue
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 from cocotb_bus.bus import Bus
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink
@@ -86,14 +87,14 @@ class DataSource:
         # queue per segment
         self.queue = [Queue() for x in range(self.seg_count)]
 
-        self.bus.data.setimmediatevalue(0)
-        self.bus.valid.setimmediatevalue(0)
+        self.bus.data.value = Immediate(0)
+        self.bus.valid.value = Immediate(0)
 
         cocotb.start_soon(self._run())
 
     def set_pause_generator(self, generator=None):
         if self._pause_cr is not None:
-            self._pause_cr.kill()
+            self._pause_cr.cancel()
             self._pause_cr = None
 
         self._pause_generator = generator
@@ -140,10 +141,10 @@ class DataSource:
         while True:
             await clock_edge_event
 
-            ready_sample = self.bus.ready.value.integer
+            ready_sample = int(self.bus.ready.value)
 
             if self.reset is not None and self.reset.value:
-                self.bus.valid.setimmediatevalue(0)
+                self.bus.valid.value = Immediate(0)
                 valid = 0
                 continue
 
@@ -179,7 +180,7 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         # streaming data in
         self.source = DataSource(DataBus.from_prefix(dut, "input"), dut.clk, dut.rst)
@@ -188,7 +189,7 @@ class TB(object):
         # streaming data out
         self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
 
-        dut.fifo_rst_in.setimmediatevalue(0)
+        dut.fifo_rst_in.value = Immediate(0)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -199,7 +200,7 @@ class TB(object):
             self.sink.set_pause_generator(generator())
 
     async def reset(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -210,7 +211,7 @@ class TB(object):
             await RisingEdge(self.dut.clk)
 
     async def reset_fifo(self):
-        self.dut.fifo_rst_in.setimmediatevalue(0)
+        self.dut.fifo_rst_in.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.fifo_rst_in.value = 1
@@ -332,18 +333,20 @@ def incrementing_payload(length):
     return bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
-    factory = TestFactory(run_test)
-    factory.add_option("payload_lengths", [size_list])
-    factory.add_option("payload_data", [incrementing_payload])
-    factory.add_option("pack", [False, True])
-    factory.add_option("idle_inserter", [None, cycle_pause])
-    factory.add_option("backpressure_inserter", [None, cycle_pause])
-    factory.generate_tests()
+    test_params = cocotb.parametrize(
+        ("payload_lengths", [size_list]),
+        ("payload_data", [incrementing_payload]),
+        ("pack", [False, True]),
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+    )
+
+    run_test = cocotb.test(test_params(run_test))
 
 
-# cocotb-test
+# cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
 rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
@@ -383,12 +386,22 @@ def test_axi_vfifo_dec(request, axis_data_width, seg_width, seg_cnt):
     sim_build = os.path.join(tests_dir, "sim_build",
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-CASEINCOMPLETE", "-Wno-UNSIGNED"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=tests_dir,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

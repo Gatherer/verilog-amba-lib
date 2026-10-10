@@ -1,4 +1,5 @@
 # Copyright (c) 2023 Alex Forencich
+# Copyright (c) 2026 Thomas Glatte
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,15 +21,15 @@
 
 TOPLEVEL_LANG = verilog
 
-SIM ?= icarus
+SIM ?= verilator
 WAVES ?= 0
 
 COCOTB_HDL_TIMEUNIT = 1ns
 COCOTB_HDL_TIMEPRECISION = 1ps
 
 DUT      = axi_vfifo
-TOPLEVEL = $(DUT)
-MODULE   = test_$(DUT)
+COCOTB_TOPLEVEL     = $(DUT)
+COCOTB_TEST_MODULES = test_$(DUT)
 VERILOG_SOURCES += ../../rtl/$(DUT).v
 VERILOG_SOURCES += ../../rtl/axi_vfifo_raw.v
 VERILOG_SOURCES += ../../rtl/axi_vfifo_raw_wr.v
@@ -61,16 +62,16 @@ export PARAM_READ_FIFO_DEPTH := 128
 export PARAM_READ_MAX_BURST_LEN := $(PARAM_WRITE_MAX_BURST_LEN)
 
 ifeq ($(SIM), icarus)
-	PLUSARGS += -fst
+	COCOTB_PLUSARGS += -fst
 
-	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(COCOTB_TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
 		VERILOG_SOURCES += iverilog_dump.v
 		COMPILE_ARGS += -s iverilog_dump
 	endif
 else ifeq ($(SIM), verilator)
-	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE
+	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-UNSIGNED
 
 	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-G$(subst PARAM_,,$(v))=$($(v)))
 
@@ -84,11 +85,11 @@ include $(shell cocotb-config --makefiles)/Makefile.sim
 iverilog_dump.v:
 	echo 'module iverilog_dump();' > $@
 	echo 'initial begin' >> $@
-	echo '    $$dumpfile("$(TOPLEVEL).fst");' >> $@
-	echo '    $$dumpvars(0, $(TOPLEVEL));' >> $@
+	echo '    $$dumpfile("$(COCOTB_TOPLEVEL).fst");' >> $@
+	echo '    $$dumpvars(0, $(COCOTB_TOPLEVEL));' >> $@
 	echo 'end' >> $@
 	echo 'endmodule' >> $@
 
 clean::
 	@rm -rf iverilog_dump.v
-	@rm -rf dump.fst $(TOPLEVEL).fst
+	@rm -rf dump.fst $(COCOTB_TOPLEVEL).fst

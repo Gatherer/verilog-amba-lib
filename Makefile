@@ -1,0 +1,51 @@
+# Top-level Makefile: create Python venv and run cocotb tests (Verilator)
+#
+#   make            create venv (if needed) and run all tests
+#   make venv       create/update venv from tox.ini deps
+#   make test TESTS=tb/axi_ram ARGS="-k 32"   serial, live output (default)
+#   make test JOBS=auto                       parallel (regression), output only on failure
+#   make clean      remove simulation build outputs
+#   make distclean  clean + remove venv
+
+PYTHON ?= python3
+VENV   ?= .venv
+JOBS   ?= 0
+TESTS  ?= tb
+ARGS   ?=
+
+# serial run (JOBS=0): disable output capturing for live simulation output
+LIVE_OUT := $(if $(filter 0,$(JOBS)),-s)
+
+VENV_BIN   := $(VENV)/bin
+VENV_STAMP := $(VENV)/.installed
+
+# package pins are maintained in tox.ini [testenv] deps
+DEPS = $(shell sed -n '/^deps =/,/^$$/{/^    /p}' tox.ini | sed 's/ //g')
+
+.PHONY: all venv test check-verilator clean distclean
+
+all: test
+
+venv: $(VENV_STAMP)
+
+$(VENV_STAMP): tox.ini
+	$(PYTHON) -m venv $(VENV)
+	$(VENV_BIN)/pip install --upgrade pip
+	$(VENV_BIN)/pip install $(DEPS)
+	touch $@
+
+check-verilator:
+	@command -v verilator >/dev/null || { echo "ERROR: verilator not found in PATH"; exit 1; }
+	@verilator --version
+
+test: $(VENV_STAMP) check-verilator
+	PATH=$(abspath $(VENV_BIN)):$$PATH $(VENV_BIN)/pytest -n $(JOBS) $(LIVE_OUT) $(ARGS) $(TESTS)
+
+clean:
+	find tb -name sim_build -type d -prune -exec rm -rf {} +
+	find tb -name results.xml -delete
+	find tb -name __pycache__ -type d -prune -exec rm -rf {} +
+	rm -f tb/*/*_wrap_[0-9]*x[0-9]*.v
+
+distclean: clean
+	rm -rf $(VENV)
