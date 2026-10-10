@@ -36,10 +36,10 @@ COCOTB_HDL_TIMEPRECISION = 1ps
 DUT      = axi_dp_ram
 COCOTB_TOPLEVEL     = $(DUT)
 COCOTB_TEST_MODULES = test_$(DUT)
-VERILOG_SOURCES += ../../rtl/$(DUT).v
-VERILOG_SOURCES += ../../rtl/axi_ram_wr_rd_if.v
-VERILOG_SOURCES += ../../rtl/axi_ram_wr_if.v
-VERILOG_SOURCES += ../../rtl/axi_ram_rd_if.v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT).v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_ram_wr_rd_if.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_ram_wr_if.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_ram_rd_if.v
 
 # module parameters
 export PARAM_DATA_WIDTH := 32

@@ -223,7 +223,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
+common_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common', 'v'))
 results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
@@ -252,8 +253,8 @@ def test_axi_interconnect(request, s_count, m_count, data_width):
     verilog_sources = [
         wrapper_file,
         os.path.join(rtl_dir, f"{dut}.v"),
-        os.path.join(rtl_dir, "arbiter.v"),
-        os.path.join(rtl_dir, "priority_encoder.v"),
+        os.path.join(common_dir, "arbiter.v"),
+        os.path.join(common_dir, "priority_encoder.v"),
     ]
 
     parameters = {}

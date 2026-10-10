@@ -36,7 +36,7 @@ COCOTB_HDL_TIMEPRECISION = 1ps
 DUT      = axi_vfifo_enc
 COCOTB_TOPLEVEL     = $(DUT)
 COCOTB_TEST_MODULES = test_$(DUT)
-VERILOG_SOURCES += ../../rtl/$(DUT).v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT).v
 
 # module parameters
 export PARAM_SEG_WIDTH := 256

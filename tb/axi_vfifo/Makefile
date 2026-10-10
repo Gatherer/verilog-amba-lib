@@ -36,12 +36,12 @@ COCOTB_HDL_TIMEPRECISION = 1ps
 DUT      = axi_vfifo
 COCOTB_TOPLEVEL     = $(DUT)
 COCOTB_TEST_MODULES = test_$(DUT)
-VERILOG_SOURCES += ../../rtl/$(DUT).v
-VERILOG_SOURCES += ../../rtl/axi_vfifo_raw.v
-VERILOG_SOURCES += ../../rtl/axi_vfifo_raw_wr.v
-VERILOG_SOURCES += ../../rtl/axi_vfifo_raw_rd.v
-VERILOG_SOURCES += ../../rtl/axi_vfifo_enc.v
-VERILOG_SOURCES += ../../rtl/axi_vfifo_dec.v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT).v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_vfifo_raw.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_vfifo_raw_wr.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_vfifo_raw_rd.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_vfifo_enc.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_vfifo_dec.v
 
 # module parameters
 export PARAM_AXI_CH := 2
