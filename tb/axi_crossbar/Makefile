@@ -41,14 +41,14 @@ WRAPPER  = $(DUT)_wrap_$(S_COUNT)x$(M_COUNT)
 COCOTB_TOPLEVEL     = $(WRAPPER)
 COCOTB_TEST_MODULES = test_$(DUT)
 VERILOG_SOURCES += $(RESULTS_DIR)/$(WRAPPER).v
-VERILOG_SOURCES += ../../rtl/$(DUT).v
-VERILOG_SOURCES += ../../rtl/$(DUT)_addr.v
-VERILOG_SOURCES += ../../rtl/$(DUT)_rd.v
-VERILOG_SOURCES += ../../rtl/$(DUT)_wr.v
-VERILOG_SOURCES += ../../rtl/axi_register_rd.v
-VERILOG_SOURCES += ../../rtl/axi_register_wr.v
-VERILOG_SOURCES += ../../rtl/arbiter.v
-VERILOG_SOURCES += ../../rtl/priority_encoder.v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT).v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT)_addr.v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT)_rd.v
+VERILOG_SOURCES += ../../rtl/axi/v/$(DUT)_wr.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_register_rd.v
+VERILOG_SOURCES += ../../rtl/axi/v/axi_register_wr.v
+VERILOG_SOURCES += ../../rtl/common/v/arbiter.v
+VERILOG_SOURCES += ../../rtl/common/v/priority_encoder.v
 
 # module parameters
 export PARAM_DATA_WIDTH := 32
@@ -90,7 +90,7 @@ endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-$(RESULTS_DIR)/$(WRAPPER).v: ../../rtl/$(DUT)_wrap.py | $(SIM_BUILD)
+$(RESULTS_DIR)/$(WRAPPER).v: ../../rtl/axi/v/$(DUT)_wrap.py | $(SIM_BUILD)
 	python3 $< -p $(S_COUNT) $(M_COUNT) -o $@
 
 $(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)

@@ -380,54 +380,54 @@ registers can be individually bypassed.
 
 ### Source Files
 
-    rtl/arbiter.v                   : Parametrizable arbiter
-    rtl/axi_adapter.v               : AXI lite width converter
-    rtl/axi_adapter_rd.v            : AXI lite width converter (read)
-    rtl/axi_adapter_wr.v            : AXI lite width converter (write)
-    rtl/axi_axil_adapter.v          : AXI to AXI lite converter
-    rtl/axi_axil_adapter_rd.v       : AXI to AXI lite converter (read)
-    rtl/axi_axil_adapter_wr.v       : AXI to AXI lite converter (write)
-    rtl/axi_cdma.v                  : AXI central DMA engine
-    rtl/axi_cdma_desc_mux.v         : AXI CDMA descriptor mux
-    rtl/axi_crossbar.v              : AXI nonblocking crossbar interconnect
-    rtl/axi_crossbar_addr.v         : AXI crossbar address module
-    rtl/axi_crossbar_rd.v           : AXI crossbar interconnect (read)
-    rtl/axi_crossbar_wr.v           : AXI crossbar interconnect (write)
-    rtl/axi_dma.v                   : AXI DMA engine
-    rtl/axi_dma_desc_mux.v          : AXI DMA descriptor mux
-    rtl/axi_dma_rd.v                : AXI DMA engine (read)
-    rtl/axi_dma_wr.v                : AXI DMA engine (write)
-    rtl/axi_dp_ram.v                : AXI dual-port RAM
-    rtl/axi_fifo.v                  : AXI FIFO
-    rtl/axi_fifo_rd.v               : AXI FIFO (read)
-    rtl/axi_fifo_wr.v               : AXI FIFO (write)
-    rtl/axi_interconnect.v          : AXI shared interconnect
-    rtl/axi_ram.v                   : AXI RAM
-    rtl/axi_ram_rd_if.v             : AXI RAM read interface
-    rtl/axi_ram_wr_if.v             : AXI RAM write interface
-    rtl/axi_ram_wr_rd_if.v          : AXI RAM read/write interface
-    rtl/axi_register.v              : AXI register
-    rtl/axi_register_rd.v           : AXI register (read)
-    rtl/axi_register_wr.v           : AXI register (write)
-    rtl/axil_adapter.v              : AXI lite width converter
-    rtl/axil_adapter_rd.v           : AXI lite width converter (read)
-    rtl/axil_adapter_wr.v           : AXI lite width converter (write)
-    rtl/axil_cdc.v                  : AXI lite CDC
-    rtl/axil_cdc_rd.v               : AXI lite CDC (read)
-    rtl/axil_cdc_wr.v               : AXI lite CDC (write)
-    rtl/axil_crossbar.v             : AXI lite nonblocking crossbar interconnect
-    rtl/axil_crossbar_addr.v        : AXI lite crossbar address module
-    rtl/axil_crossbar_rd.v          : AXI lite crossbar interconnect (read)
-    rtl/axil_crossbar_wr.v          : AXI lite crossbar interconnect (write)
-    rtl/axil_interconnect.v         : AXI lite shared interconnect
-    rtl/axil_ram.v                  : AXI lite RAM
-    rtl/axil_reg_if.v               : AXI lite register interface
-    rtl/axil_reg_if_rd.v            : AXI lite register interface (read)
-    rtl/axil_reg_if_wr.v            : AXI lite register interface (write)
-    rtl/axil_register.v             : AXI lite register
-    rtl/axil_register_rd.v          : AXI lite register (read)
-    rtl/axil_register_wr.v          : AXI lite register (write)
-    rtl/priority_encoder.v          : Parametrizable priority encoder
+    rtl/common/v/arbiter.v              : Parametrizable arbiter
+    rtl/axi/v/axi_adapter.v             : AXI lite width converter
+    rtl/axi/v/axi_adapter_rd.v          : AXI lite width converter (read)
+    rtl/axi/v/axi_adapter_wr.v          : AXI lite width converter (write)
+    rtl/axi/v/axi_axil_adapter.v        : AXI to AXI lite converter
+    rtl/axi/v/axi_axil_adapter_rd.v     : AXI to AXI lite converter (read)
+    rtl/axi/v/axi_axil_adapter_wr.v     : AXI to AXI lite converter (write)
+    rtl/axi/v/axi_cdma.v                : AXI central DMA engine
+    rtl/axi/v/axi_cdma_desc_mux.v       : AXI CDMA descriptor mux
+    rtl/axi/v/axi_crossbar.v            : AXI nonblocking crossbar interconnect
+    rtl/axi/v/axi_crossbar_addr.v       : AXI crossbar address module
+    rtl/axi/v/axi_crossbar_rd.v         : AXI crossbar interconnect (read)
+    rtl/axi/v/axi_crossbar_wr.v         : AXI crossbar interconnect (write)
+    rtl/axi/v/axi_dma.v                 : AXI DMA engine
+    rtl/axi/v/axi_dma_desc_mux.v        : AXI DMA descriptor mux
+    rtl/axi/v/axi_dma_rd.v              : AXI DMA engine (read)
+    rtl/axi/v/axi_dma_wr.v              : AXI DMA engine (write)
+    rtl/axi/v/axi_dp_ram.v              : AXI dual-port RAM
+    rtl/axi/v/axi_fifo.v                : AXI FIFO
+    rtl/axi/v/axi_fifo_rd.v             : AXI FIFO (read)
+    rtl/axi/v/axi_fifo_wr.v             : AXI FIFO (write)
+    rtl/axi/v/axi_interconnect.v        : AXI shared interconnect
+    rtl/axi/v/axi_ram.v                 : AXI RAM
+    rtl/axi/v/axi_ram_rd_if.v           : AXI RAM read interface
+    rtl/axi/v/axi_ram_wr_if.v           : AXI RAM write interface
+    rtl/axi/v/axi_ram_wr_rd_if.v        : AXI RAM read/write interface
+    rtl/axi/v/axi_register.v            : AXI register
+    rtl/axi/v/axi_register_rd.v         : AXI register (read)
+    rtl/axi/v/axi_register_wr.v         : AXI register (write)
+    rtl/axi/v/axil_adapter.v            : AXI lite width converter
+    rtl/axi/v/axil_adapter_rd.v         : AXI lite width converter (read)
+    rtl/axi/v/axil_adapter_wr.v         : AXI lite width converter (write)
+    rtl/axi/v/axil_cdc.v                : AXI lite CDC
+    rtl/axi/v/axil_cdc_rd.v             : AXI lite CDC (read)
+    rtl/axi/v/axil_cdc_wr.v             : AXI lite CDC (write)
+    rtl/axi/v/axil_crossbar.v           : AXI lite nonblocking crossbar interconnect
+    rtl/axi/v/axil_crossbar_addr.v      : AXI lite crossbar address module
+    rtl/axi/v/axil_crossbar_rd.v        : AXI lite crossbar interconnect (read)
+    rtl/axi/v/axil_crossbar_wr.v        : AXI lite crossbar interconnect (write)
+    rtl/axi/v/axil_interconnect.v       : AXI lite shared interconnect
+    rtl/axi/v/axil_ram.v                : AXI lite RAM
+    rtl/axi/v/axil_reg_if.v             : AXI lite register interface
+    rtl/axi/v/axil_reg_if_rd.v          : AXI lite register interface (read)
+    rtl/axi/v/axil_reg_if_wr.v          : AXI lite register interface (write)
+    rtl/axi/v/axil_register.v           : AXI lite register
+    rtl/axi/v/axil_register_rd.v        : AXI lite register (read)
+    rtl/axi/v/axil_register_wr.v        : AXI lite register (write)
+    rtl/common/v/priority_encoder.v     : Parametrizable priority encoder
 
 ### AXI4-Lite Interface Example
 
