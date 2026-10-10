@@ -2,6 +2,7 @@
 """
 
 Copyright (c) 2021 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,20 +27,21 @@ THE SOFTWARE.
 import itertools
 import logging
 import os
+import sys
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiStreamSink
 from cocotbext.axi.stream import define_stream
 
-StatusBus, StatusTransaction, StatusSource, StatusSink, StatusMonitor = define_stream("Status",
-    signals=["frame_pad", "frame_truncate", "frame_length", "frame_original_length", "valid"],
+HdrBus, HdrTransaction, HdrSource, HdrSink, HdrMonitor = define_stream("Hdr",
+    signals=["pad", "truncate", "length", "original_length", "valid"],
     optional_signals=["ready"]
 )
 
@@ -51,16 +53,16 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
         self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
 
-        # Status
-        self.status_sink = StatusSink(StatusBus.from_prefix(dut, "status"), dut.clk, dut.rst)
+        # Header
+        self.hdr_sink = HdrSink(HdrBus.from_prefix(dut, "m_axis_hdr"), dut.clk, dut.rst)
 
-        self.dut.length_min.setimmediatevalue(0)
-        self.dut.length_max.setimmediatevalue(2048)
+        self.dut.length_min.value = Immediate(0)
+        self.dut.length_max.value = Immediate(2048)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -71,7 +73,7 @@ class TB(object):
             self.sink.set_pause_generator(generator())
 
     async def reset(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -130,14 +132,14 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
                 assert rx_frame.tdest == test_frame.tdest
                 assert not rx_frame.tuser
 
-                status = await tb.status_sink.recv()
+                hdr = await tb.hdr_sink.recv()
 
-                tb.log.info("Status: %s", status)
+                tb.log.info("Header: %s", hdr)
 
-                assert status.frame_pad == int(len_test < length_min)
-                assert status.frame_truncate == int(len_test > length_max)
-                assert status.frame_length == len_rx
-                assert status.frame_original_length == len_test
+                assert hdr.pad == int(len_test < length_min)
+                assert hdr.truncate == int(len_test > length_max)
+                assert hdr.length == len_rx
+                assert hdr.original_length == len_test
 
     assert tb.sink.empty()
 
@@ -264,30 +266,32 @@ def incrementing_payload(length):
     return bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
-    factory = TestFactory(run_test)
-    factory.add_option("payload_lengths", [size_list])
-    factory.add_option("payload_data", [incrementing_payload])
-    factory.add_option("idle_inserter", [None, cycle_pause])
-    factory.add_option("backpressure_inserter", [None, cycle_pause])
-    factory.generate_tests()
+    test_params = cocotb.parametrize(
+        ("payload_lengths", [size_list]),
+        ("payload_data", [incrementing_payload]),
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+    )
 
-    for test in [
-                run_test_tuser_assert,
-                run_test_init_sink_pause,
-                run_test_init_sink_pause_reset,
-                run_test_overflow
-            ]:
+    run_test = cocotb.test(test_params(run_test))
 
-        factory = TestFactory(test)
-        factory.generate_tests()
+    run_test_tuser_assert = cocotb.test(run_test_tuser_assert)
+    run_test_init_sink_pause = cocotb.test(run_test_init_sink_pause)
+    run_test_init_sink_pause_reset = cocotb.test(run_test_init_sink_pause_reset)
+    run_test_overflow = cocotb.test(run_test_overflow)
 
 
-# cocotb-test
+# cocotb runner
 
-tests_dir = os.path.dirname(__file__)
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
+tests_dir = os.path.abspath(os.path.dirname(__file__))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
+results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+
+# simulation runs in results_dir, keep test module importable for cocotb
+if tests_dir not in sys.path:
+    sys.path.insert(0, tests_dir)
 
 
 def process_f_files(files):
@@ -326,21 +330,30 @@ def test_axis_frame_length_adjust_fifo(request, data_width):
     parameters['DEST_WIDTH'] = 8
     parameters['USER_ENABLE'] = 1
     parameters['USER_WIDTH'] = 1
-    parameters['LEN_WIDTH'] = 16
     parameters['FRAME_FIFO_DEPTH'] = 1024
     parameters['HEADER_FIFO_DEPTH'] = 8
 
     extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(tests_dir, "sim_build",
+    sim_build = os.path.join(results_dir,
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-PINMISSING", "-Wno-CASEINCOMPLETE", "-Wno-LATCH", "-Wno-UNOPTFLAT"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=sim_build,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

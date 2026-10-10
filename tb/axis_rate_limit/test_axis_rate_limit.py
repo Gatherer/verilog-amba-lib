@@ -2,6 +2,7 @@
 """
 
 Copyright (c) 2021 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,14 +27,15 @@ THE SOFTWARE.
 import itertools
 import logging
 import os
+import sys
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiStreamSink
 
@@ -45,14 +47,14 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
         self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
 
-        dut.rate_num.setimmediatevalue(1)
-        dut.rate_denom.setimmediatevalue(1)
-        dut.rate_by_frame.setimmediatevalue(0)
+        dut.rate_num.value = Immediate(1)
+        dut.rate_denom.value = Immediate(1)
+        dut.rate_by_frame.value = Immediate(0)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -63,7 +65,7 @@ class TB(object):
             self.sink.set_pause_generator(generator())
 
     async def reset(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -152,25 +154,30 @@ def incrementing_payload(length):
     return bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
-    factory = TestFactory(run_test)
-    factory.add_option("payload_lengths", [size_list])
-    factory.add_option("payload_data", [incrementing_payload])
-    factory.add_option("idle_inserter", [None, cycle_pause])
-    factory.add_option("backpressure_inserter", [None, cycle_pause])
-    factory.add_option("rate", [(1, 1), (1, 2), (1, 10), (2, 3)])
-    factory.generate_tests()
+    test_params = cocotb.parametrize(
+        ("payload_lengths", [size_list]),
+        ("payload_data", [incrementing_payload]),
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+        ("rate", [(1, 1), (1, 2), (1, 10), (2, 3)]),
+    )
 
-    for test in [run_test_tuser_assert]:
-        factory = TestFactory(test)
-        factory.generate_tests()
+    run_test = cocotb.test(test_params(run_test))
+
+    run_test_tuser_assert = cocotb.test(run_test_tuser_assert)
 
 
-# cocotb-test
+# cocotb runner
 
-tests_dir = os.path.dirname(__file__)
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
+tests_dir = os.path.abspath(os.path.dirname(__file__))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
+results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+
+# simulation runs in results_dir, keep test module importable for cocotb
+if tests_dir not in sys.path:
+    sys.path.insert(0, tests_dir)
 
 
 @pytest.mark.parametrize("data_width", [8, 16, 32, 64])
@@ -198,15 +205,25 @@ def test_axis_rate_limit(request, data_width):
 
     extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(tests_dir, "sim_build",
+    sim_build = os.path.join(results_dir,
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=sim_build,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

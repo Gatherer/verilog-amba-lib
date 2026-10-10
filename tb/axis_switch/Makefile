@@ -1,4 +1,5 @@
 # Copyright (c) 2021 Alex Forencich
+# Copyright (c) 2026 Thomas Glatte
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,8 +21,14 @@
 
 TOPLEVEL_LANG = verilog
 
-SIM ?= icarus
+SIM ?= verilator
 WAVES ?= 0
+
+# all generated files go to tb/results/<test>/
+RESULTS_DIR         = ../results/$(notdir $(CURDIR))
+SIM_BUILD           = $(RESULTS_DIR)/sim_build
+COCOTB_RESULTS_FILE = $(RESULTS_DIR)/results.xml
+export PYTHONPYCACHEPREFIX = $(abspath $(RESULTS_DIR))/__pycache__
 
 COCOTB_HDL_TIMEUNIT = 1ns
 COCOTB_HDL_TIMEPRECISION = 1ps
@@ -31,10 +38,10 @@ export M_COUNT ?= 4
 
 DUT      = axis_switch
 WRAPPER  = $(DUT)_wrap_$(S_COUNT)x$(M_COUNT)
-TOPLEVEL = $(WRAPPER)
-MODULE   = test_$(DUT)
-VERILOG_SOURCES += $(WRAPPER).v
-VERILOG_SOURCES += ../../rtl/$(DUT).f
+COCOTB_TOPLEVEL     = $(WRAPPER)
+COCOTB_TEST_MODULES = test_$(DUT)
+VERILOG_SOURCES += $(RESULTS_DIR)/$(WRAPPER).v
+VERILOG_SOURCES += ../../rtl/axis/v/$(DUT).f
 
 # handle file list files
 process_f_file = $(call process_f_files,$(addprefix $(dir $1),$(shell cat $1)))
@@ -60,38 +67,40 @@ export PARAM_ARB_TYPE_ROUND_ROBIN := 1
 export PARAM_ARB_LSB_HIGH_PRIORITY := 1
 
 ifeq ($(SIM), icarus)
-	PLUSARGS += -fst
+	COCOTB_PLUSARGS += -fst
 
-	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(COCOTB_TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
-		VERILOG_SOURCES += iverilog_dump.v
+		VERILOG_SOURCES += $(RESULTS_DIR)/iverilog_dump.v
 		COMPILE_ARGS += -s iverilog_dump
 	endif
 else ifeq ($(SIM), verilator)
-	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH
+	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH -Wno-ASCRANGE -Wno-UNOPTFLAT
 
 	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-G$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst
+		SIM_ARGS += --trace --trace-file $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
 	endif
 endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-$(WRAPPER).v: ../../rtl/$(DUT)_wrap.py
-	$< -p $(S_COUNT) $(M_COUNT)
+$(RESULTS_DIR)/$(WRAPPER).v: ../../rtl/axis/v/$(DUT)_wrap.py | $(SIM_BUILD)
+	python3 $< -p $(S_COUNT) $(M_COUNT) -o $@
 
-iverilog_dump.v:
+$(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)
 	echo 'module iverilog_dump();' > $@
 	echo 'initial begin' >> $@
-	echo '    $$dumpfile("$(TOPLEVEL).fst");' >> $@
-	echo '    $$dumpvars(0, $(TOPLEVEL));' >> $@
+	echo '    $$dumpfile("$(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst");' >> $@
+	echo '    $$dumpvars(0, $(COCOTB_TOPLEVEL));' >> $@
 	echo 'end' >> $@
 	echo 'endmodule' >> $@
 
 clean::
-	@rm -rf iverilog_dump.v
-	@rm -rf dump.fst $(TOPLEVEL).fst
-	@rm -rf *_wrap_*.v
+	@rm -rf $(RESULTS_DIR)/iverilog_dump.v
+	@rm -rf $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
+	@rm -rf $(RESULTS_DIR)/__pycache__
+	@rm -rf $(RESULTS_DIR)/*_wrap_*.v

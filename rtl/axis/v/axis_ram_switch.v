@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2020 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -143,6 +144,8 @@ module axis_ram_switch #
 
 parameter CL_S_COUNT = $clog2(S_COUNT);
 parameter CL_M_COUNT = $clog2(M_COUNT);
+// tdest select width, at least 1 bit (avoid zero width part select for M_COUNT == 1)
+parameter CL_M_COUNT_INT = CL_M_COUNT > 0 ? CL_M_COUNT : 1;
 
 parameter S_ID_WIDTH_INT = S_ID_WIDTH > 0 ? S_ID_WIDTH : 1;
 parameter M_DEST_WIDTH_INT = M_DEST_WIDTH > 0 ? M_DEST_WIDTH : 1;
@@ -463,7 +466,7 @@ generate
                             drop_next = 1'b0;
                         end else begin
                             // M_BASE is zero, route with $clog2(M_COUNT) MSBs of tdest as port index
-                            if (port_axis_tdest[S_DEST_WIDTH-CL_M_COUNT +: CL_M_COUNT] == k && (M_CONNECT & (1 << (m+k*S_COUNT)))) begin
+                            if (port_axis_tdest[S_DEST_WIDTH-CL_M_COUNT_INT +: CL_M_COUNT_INT] == k && (M_CONNECT & (1 << (m+k*S_COUNT)))) begin
                                 select_next = k;
                                 select_valid_next = 1'b1;
                                 drop_next = 1'b0;
