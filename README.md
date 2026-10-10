@@ -707,35 +707,35 @@ Parametrizable priority encoder.
 
 ### Source Files
 
-    arbiter.v                          : General-purpose parametrizable arbiter
-    axis_adapter.v                     : Parametrizable bus width adapter
-    axis_arb_mux.v                     : Parametrizable arbitrated multiplexer
-    axis_async_fifo.v                  : Parametrizable asynchronous FIFO
-    axis_async_fifo_adapter.v          : FIFO/width adapter wrapper
-    axis_broadcast.v                   : AXI stream broadcaster
-    axis_cobs_decode.v                 : COBS decoder
-    axis_cobs_encode.v                 : COBS encoder
-    axis_crosspoint.v                  : Parametrizable crosspoint switch
-    axis_demux.v                       : Parametrizable demultiplexer
-    axis_fifo.v                        : Parametrizable synchronous FIFO
-    axis_fifo_adapter.v                : FIFO/width adapter wrapper
-    axis_frame_join.v                  : Parametrizable frame joiner
-    axis_frame_length_adjust.v         : Frame length adjuster
-    axis_frame_length_adjust_fifo.v    : Frame length adjuster with FIFO
-    axis_ll_bridge.v                   : AXI stream to LocalLink bridge
-    axis_mux.v                         : Multiplexer generator
-    axis_pipeline_fifo.v               : AXI stream register pipeline with FIFO
-    axis_pipeline_register.v           : AXI stream register pipeline
-    axis_ram_switch.v                  : AXI stream RAM switch
-    axis_rate_limit.v                  : Fractional rate limiter
-    axis_register.v                    : AXI Stream register
-    axis_srl_fifo.v                    : SRL-based FIFO
-    axis_srl_register.v                : SRL-based register
-    axis_switch.v                      : Parametrizable AXI stream switch
-    axis_stat_counter.v                : Statistics counter
-    axis_tap.v                         : AXI stream tap
-    ll_axis_bridge.v                   : LocalLink to AXI stream bridge
-    priority_encoder.v                 : Parametrizable priority encoder
+    rtl/common/v/arbiter.v                     : General-purpose parametrizable arbiter
+    rtl/axis/v/axis_adapter.v                  : Parametrizable bus width adapter
+    rtl/axis/v/axis_arb_mux.v                  : Parametrizable arbitrated multiplexer
+    rtl/axis/v/axis_async_fifo.v               : Parametrizable asynchronous FIFO
+    rtl/axis/v/axis_async_fifo_adapter.v       : FIFO/width adapter wrapper
+    rtl/axis/v/axis_broadcast.v                : AXI stream broadcaster
+    rtl/axis/v/axis_cobs_decode.v              : COBS decoder
+    rtl/axis/v/axis_cobs_encode.v              : COBS encoder
+    rtl/axis/v/axis_crosspoint.v               : Parametrizable crosspoint switch
+    rtl/axis/v/axis_demux.v                    : Parametrizable demultiplexer
+    rtl/axis/v/axis_fifo.v                     : Parametrizable synchronous FIFO
+    rtl/axis/v/axis_fifo_adapter.v             : FIFO/width adapter wrapper
+    rtl/axis/v/axis_frame_join.v               : Parametrizable frame joiner
+    rtl/axis/v/axis_frame_length_adjust.v      : Frame length adjuster
+    rtl/axis/v/axis_frame_length_adjust_fifo.v : Frame length adjuster with FIFO
+    rtl/axis/v/axis_ll_bridge.v                : AXI stream to LocalLink bridge
+    rtl/axis/v/axis_mux.v                      : Multiplexer generator
+    rtl/axis/v/axis_pipeline_fifo.v            : AXI stream register pipeline with FIFO
+    rtl/axis/v/axis_pipeline_register.v        : AXI stream register pipeline
+    rtl/axis/v/axis_ram_switch.v               : AXI stream RAM switch
+    rtl/axis/v/axis_rate_limit.v               : Fractional rate limiter
+    rtl/axis/v/axis_register.v                 : AXI Stream register
+    rtl/axis/v/axis_srl_fifo.v                 : SRL-based FIFO
+    rtl/axis/v/axis_srl_register.v             : SRL-based register
+    rtl/axis/v/axis_switch.v                   : Parametrizable AXI stream switch
+    rtl/axis/v/axis_stat_counter.v             : Statistics counter
+    rtl/axis/v/axis_tap.v                      : AXI stream tap
+    rtl/axis/v/ll_axis_bridge.v                : LocalLink to AXI stream bridge
+    rtl/common/v/priority_encoder.v            : Parametrizable priority encoder
 
 ### AXI Stream Interface Example
 

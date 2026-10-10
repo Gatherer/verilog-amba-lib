@@ -2,6 +2,7 @@
 """
 
 Copyright (c) 2021 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -27,14 +28,15 @@ import itertools
 import logging
 import os
 import subprocess
+import sys
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiStreamSink
 
@@ -48,13 +50,13 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         self.source = [AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)]
         self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
 
-        dut.enable.setimmediatevalue(0)
-        dut.select.setimmediatevalue(0)
+        dut.enable.value = Immediate(0)
+        dut.select.value = Immediate(0)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -66,7 +68,7 @@ class TB(object):
             self.sink.set_pause_generator(generator())
 
     async def reset(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -92,8 +94,8 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     test_frames = []
 
-    dut.enable.setimmediatevalue(1)
-    dut.select.setimmediatevalue(port)
+    dut.enable.value = Immediate(1)
+    dut.select.value = Immediate(port)
 
     for test_data in [payload_data(x) for x in payload_lengths()]:
         test_frame = AxiStreamFrame(test_data)
@@ -125,8 +127,8 @@ async def run_test_tuser_assert(dut, port=0):
 
     await tb.reset()
 
-    dut.enable.setimmediatevalue(1)
-    dut.select.setimmediatevalue(port)
+    dut.enable.value = Immediate(1)
+    dut.select.value = Immediate(port)
 
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 32))
     test_frame = AxiStreamFrame(test_data, tuser=1)
@@ -157,28 +159,36 @@ def incrementing_payload(length):
     return bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
     ports = len(cocotb.top.axis_mux_inst.s_axis_tvalid)
 
-    factory = TestFactory(run_test)
-    factory.add_option("payload_lengths", [size_list])
-    factory.add_option("payload_data", [incrementing_payload])
-    factory.add_option("idle_inserter", [None, cycle_pause])
-    factory.add_option("backpressure_inserter", [None, cycle_pause])
-    factory.add_option("port", list(range(ports)))
-    factory.generate_tests()
+    test_params = cocotb.parametrize(
+        ("payload_lengths", [size_list]),
+        ("payload_data", [incrementing_payload]),
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+        ("port", list(range(ports))),
+    )
 
-    for test in [run_test_tuser_assert]:
-        factory = TestFactory(test)
-        factory.add_option("port", list(range(ports)))
-        factory.generate_tests()
+    run_test = cocotb.test(test_params(run_test))
+
+    test_params = cocotb.parametrize(
+        ("port", list(range(ports))),
+    )
+
+    run_test_tuser_assert = cocotb.test(test_params(run_test_tuser_assert))
 
 
-# cocotb-test
+# cocotb runner
 
-tests_dir = os.path.dirname(__file__)
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
+tests_dir = os.path.abspath(os.path.dirname(__file__))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
+results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+
+# simulation runs in results_dir, keep test module importable for cocotb
+if tests_dir not in sys.path:
+    sys.path.insert(0, tests_dir)
 
 
 @pytest.mark.parametrize("data_width", [8, 16, 32])
@@ -190,11 +200,12 @@ def test_axis_mux(request, ports, data_width):
     toplevel = wrapper
 
     # generate wrapper
-    wrapper_file = os.path.join(tests_dir, f"{wrapper}.v")
+    wrapper_file = os.path.join(results_dir, f"{wrapper}.v")
     if not os.path.exists(wrapper_file):
+        os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"],
-            cwd=tests_dir
+            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"],
+            cwd=results_dir
         ).wait()
 
     verilog_sources = [
@@ -218,15 +229,25 @@ def test_axis_mux(request, ports, data_width):
 
     extra_env['PORTS'] = str(ports)
 
-    sim_build = os.path.join(tests_dir, "sim_build",
+    sim_build = os.path.join(results_dir,
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-ASCRANGE"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=sim_build,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

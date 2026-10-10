@@ -1,4 +1,5 @@
 # Copyright (c) 2021 Alex Forencich
+# Copyright (c) 2026 Thomas Glatte
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,16 +21,22 @@
 
 TOPLEVEL_LANG = verilog
 
-SIM ?= icarus
+SIM ?= verilator
 WAVES ?= 0
+
+# all generated files go to tb/results/<test>/
+RESULTS_DIR         = ../results/$(notdir $(CURDIR))
+SIM_BUILD           = $(RESULTS_DIR)/sim_build
+COCOTB_RESULTS_FILE = $(RESULTS_DIR)/results.xml
+export PYTHONPYCACHEPREFIX = $(abspath $(RESULTS_DIR))/__pycache__
 
 COCOTB_HDL_TIMEUNIT = 1ns
 COCOTB_HDL_TIMEPRECISION = 1ps
 
 DUT      = axis_async_fifo
-TOPLEVEL = $(DUT)
-MODULE   = test_$(DUT)
-VERILOG_SOURCES += ../../rtl/$(DUT).v
+COCOTB_TOPLEVEL     = $(DUT)
+COCOTB_TEST_MODULES = test_$(DUT)
+VERILOG_SOURCES += ../../rtl/axis/v/$(DUT).v
 
 # module parameters
 export PARAM_DATA_WIDTH := 8
@@ -56,12 +63,12 @@ export PARAM_PAUSE_ENABLE := 1
 export PARAM_FRAME_PAUSE := 1
 
 ifeq ($(SIM), icarus)
-	PLUSARGS += -fst
+	COCOTB_PLUSARGS += -fst
 
-	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(COCOTB_TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
-		VERILOG_SOURCES += iverilog_dump.v
+		VERILOG_SOURCES += $(RESULTS_DIR)/iverilog_dump.v
 		COMPILE_ARGS += -s iverilog_dump
 	endif
 else ifeq ($(SIM), verilator)
@@ -71,19 +78,21 @@ else ifeq ($(SIM), verilator)
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst
+		SIM_ARGS += --trace --trace-file $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
 	endif
 endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-iverilog_dump.v:
+$(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)
 	echo 'module iverilog_dump();' > $@
 	echo 'initial begin' >> $@
-	echo '    $$dumpfile("$(TOPLEVEL).fst");' >> $@
-	echo '    $$dumpvars(0, $(TOPLEVEL));' >> $@
+	echo '    $$dumpfile("$(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst");' >> $@
+	echo '    $$dumpvars(0, $(COCOTB_TOPLEVEL));' >> $@
 	echo 'end' >> $@
 	echo 'endmodule' >> $@
 
 clean::
-	@rm -rf iverilog_dump.v
-	@rm -rf dump.fst $(TOPLEVEL).fst
+	@rm -rf $(RESULTS_DIR)/iverilog_dump.v
+	@rm -rf $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
+	@rm -rf $(RESULTS_DIR)/__pycache__
