@@ -27,6 +27,7 @@ import itertools
 import logging
 import os
 import random
+import sys
 
 import pytest
 
@@ -194,6 +195,11 @@ if getattr(cocotb, "SIM_NAME", None):
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
 rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
+results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+
+# simulation runs in results_dir, keep test module importable for cocotb
+if tests_dir not in sys.path:
+    sys.path.insert(0, tests_dir)
 
 
 @pytest.mark.parametrize("m_data_width", [8, 16, 32])
@@ -219,7 +225,7 @@ def test_axil_adapter(request, s_data_width, m_data_width):
 
     extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(tests_dir, "sim_build",
+    sim_build = os.path.join(results_dir,
         request.node.name.replace('[', '-').replace(']', ''))
 
     runner = get_runner("verilator")
@@ -237,7 +243,7 @@ def test_axil_adapter(request, s_data_width, m_data_width):
         test_module=module,
         hdl_toplevel=toplevel,
         build_dir=sim_build,
-        test_dir=tests_dir,
+        test_dir=sim_build,
         results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )

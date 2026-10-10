@@ -16,6 +16,9 @@ ARGS   ?=
 # serial run (JOBS=0): disable output capturing for live simulation output
 LIVE_OUT := $(if $(filter 0,$(JOBS)),-s)
 
+# keep Python bytecode out of the source tree
+export PYTHONPYCACHEPREFIX := $(abspath tb/results/__pycache__)
+
 VENV_BIN   := $(VENV)/bin
 VENV_STAMP := $(VENV)/.installed
 
@@ -42,6 +45,7 @@ test: $(VENV_STAMP) check-verilator
 	PATH=$(abspath $(VENV_BIN)):$$PATH $(VENV_BIN)/pytest -n $(JOBS) $(LIVE_OUT) $(ARGS) $(TESTS)
 
 clean:
+	rm -rf tb/results
 	find tb -name sim_build -type d -prune -exec rm -rf {} +
 	find tb -name results.xml -delete
 	find tb -name __pycache__ -type d -prune -exec rm -rf {} +
