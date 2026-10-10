@@ -1,518 +1,157 @@
-[
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[16-16]",
-    154.80171429924667
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[16-32]",
-    129.46799642406404
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[16-8]",
-    231.553730818443
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[32-16]",
-    330.9125733766705
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[32-32]",
-    248.16152153350413
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[32-8]",
-    460.55696750525385
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[8-16]",
-    61.18986997473985
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[8-32]",
-    105.168587657623
-  ],
-  [
-    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[8-8]",
-    103.56085381656885
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[16-16]",
-    276.60084352083504
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[16-32]",
-    207.58588458877057
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[16-8]",
-    455.6177165629342
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[32-16]",
-    647.3827625270933
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[32-32]",
-    518.5061077158898
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[32-8]",
-    944.8823729595169
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[8-16]",
-    197.43744012899697
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[8-32]",
-    145.78048656322062
-  ],
-  [
-    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[8-8]",
-    280.12128001917154
-  ],
-  [
-    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[16-0]",
-    17.06440698262304
-  ],
-  [
-    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[16-1]",
-    71.17776732705534
-  ],
-  [
-    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[32-0]",
-    19.746693274006248
-  ],
-  [
-    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[32-1]",
-    333.3781503010541
-  ],
-  [
-    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[8-0]",
-    22.358843713067472
-  ],
-  [
-    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[8-1]",
-    23.01292904186994
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-1-16]",
-    82.07929699122906
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-1-32]",
-    66.04357133992016
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-1-8]",
-    116.83163902442902
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-4-16]",
-    226.835347446613
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-4-32]",
-    221.82670008204877
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-4-8]",
-    278.4844740750268
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-1-16]",
-    147.22683315817267
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-1-32]",
-    166.78969807736576
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-1-8]",
-    278.06333569251
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-4-16]",
-    549.59216252435
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-4-32]",
-    455.38514183368534
-  ],
-  [
-    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-4-8]",
-    588.921606304124
-  ],
-  [
-    "tb/axi_dma/test_axi_dma.py::test_axi_dma[0-16]",
-    36.3299577338621
-  ],
-  [
-    "tb/axi_dma/test_axi_dma.py::test_axi_dma[0-32]",
-    39.596242003142834
-  ],
-  [
-    "tb/axi_dma/test_axi_dma.py::test_axi_dma[0-8]",
-    54.620901849120855
-  ],
-  [
-    "tb/axi_dma/test_axi_dma.py::test_axi_dma[1-16]",
-    70.15106952376664
-  ],
-  [
-    "tb/axi_dma/test_axi_dma.py::test_axi_dma[1-32]",
-    157.4396074814722
-  ],
-  [
-    "tb/axi_dma/test_axi_dma.py::test_axi_dma[1-8]",
-    56.511911587789655
-  ],
-  [
-    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[16-0]",
-    3.7544524213299155
-  ],
-  [
-    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[16-1]",
-    7.172512795776129
-  ],
-  [
-    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[32-0]",
-    4.666332081891596
-  ],
-  [
-    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[32-1]",
-    23.44465008098632
-  ],
-  [
-    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[8-0]",
-    5.142332099378109
-  ],
-  [
-    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[8-1]",
-    6.475921370089054
-  ],
-  [
-    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[16-0]",
-    20.40422752313316
-  ],
-  [
-    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[16-1]",
-    46.69374061562121
-  ],
-  [
-    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[32-0]",
-    22.988098615780473
-  ],
-  [
-    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[32-1]",
-    89.21624889411032
-  ],
-  [
-    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[8-0]",
-    29.688831198960543
-  ],
-  [
-    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[8-1]",
-    27.773485894314945
-  ],
-  [
-    "tb/axi_dp_ram/test_axi_dp_ram.py::test_axi_dp_ram[16]",
-    557.706888041459
-  ],
-  [
-    "tb/axi_dp_ram/test_axi_dp_ram.py::test_axi_dp_ram[32]",
-    875.9048622418195
-  ],
-  [
-    "tb/axi_dp_ram/test_axi_dp_ram.py::test_axi_dp_ram[8]",
-    293.5553059997037
-  ],
-  [
-    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[16-0]",
-    128.83496031537652
-  ],
-  [
-    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[16-1]",
-    173.11390095669776
-  ],
-  [
-    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[32-0]",
-    343.3222937248647
-  ],
-  [
-    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[32-1]",
-    350.7498745601624
-  ],
-  [
-    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[8-0]",
-    105.13950155116618
-  ],
-  [
-    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[8-1]",
-    121.01873329374939
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-1-16]",
-    102.19653648044914
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-1-32]",
-    82.02585211675614
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-1-8]",
-    161.5555182993412
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-4-16]",
-    257.6017242670059
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-4-32]",
-    234.7367910388857
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-4-8]",
-    347.6929644905031
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-1-16]",
-    246.63431577198207
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-1-32]",
-    172.08718999754637
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-1-8]",
-    321.3593363221735
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-4-16]",
-    574.1888536829501
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-4-32]",
-    410.4118745010346
-  ],
-  [
-    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-4-8]",
-    735.5517066828907
-  ],
-  [
-    "tb/axi_ram/test_axi_ram.py::test_axi_ram[16]",
-    157.18584052287042
-  ],
-  [
-    "tb/axi_ram/test_axi_ram.py::test_axi_ram[32]",
-    284.1904304390773
-  ],
-  [
-    "tb/axi_ram/test_axi_ram.py::test_axi_ram[8]",
-    71.96863563451916
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[16-0]",
-    137.7420165129006
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[16-1]",
-    195.76706382073462
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[16-2]",
-    165.80640455987304
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[16-None]",
-    161.71680294163525
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[32-0]",
-    312.6301383897662
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[32-1]",
-    363.7704292088747
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[32-2]",
-    327.6335842087865
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[32-None]",
-    342.006927145645
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[8-0]",
-    102.75957749877125
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[8-1]",
-    150.65885178279132
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[8-2]",
-    116.52124607004225
-  ],
-  [
-    "tb/axi_register/test_axi_register.py::test_axi_register[8-None]",
-    112.02143712155521
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[16-16]",
-    9.414873909205198
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[16-32]",
-    10.720249651931226
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[16-8]",
-    15.94476203713566
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[32-16]",
-    10.456397350877523
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[32-32]",
-    9.175778770819306
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[32-8]",
-    20.37657857965678
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[8-16]",
-    18.28249195497483
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[8-32]",
-    18.1448409659788
-  ],
-  [
-    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[8-8]",
-    18.509287000633776
-  ],
-  [
-    "tb/axil_cdc/test_axil_cdc.py::test_axil_cdc[16]",
-    32.789682413451374
-  ],
-  [
-    "tb/axil_cdc/test_axil_cdc.py::test_axil_cdc[32]",
-    27.674326405860484
-  ],
-  [
-    "tb/axil_cdc/test_axil_cdc.py::test_axil_cdc[8]",
-    58.896160850301385
-  ],
-  [
-    "tb/axil_dp_ram/test_axil_dp_ram.py::test_axil_dp_ram[16]",
-    8.325086586177349
-  ],
-  [
-    "tb/axil_dp_ram/test_axil_dp_ram.py::test_axil_dp_ram[32]",
-    14.020466917194426
-  ],
-  [
-    "tb/axil_dp_ram/test_axil_dp_ram.py::test_axil_dp_ram[8]",
-    9.97084455192089
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-1-16]",
-    23.2663188977167
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-1-32]",
-    23.612671780399978
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-1-8]",
-    42.97799370903522
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-4-16]",
-    44.34295728802681
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-4-32]",
-    35.623706634156406
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-4-8]",
-    81.04713163338602
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-1-16]",
-    43.093923680484295
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-1-32]",
-    34.437351221218705
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-1-8]",
-    73.75804248824716
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-4-16]",
-    64.2899643778801
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-4-32]",
-    67.7834402685985
-  ],
-  [
-    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-4-8]",
-    87.84026487357914
-  ],
-  [
-    "tb/axil_ram/test_axil_ram.py::test_axil_ram[16]",
-    4.694024303928018
-  ],
-  [
-    "tb/axil_ram/test_axil_ram.py::test_axil_ram[32]",
-    5.4611031180247664
-  ],
-  [
-    "tb/axil_ram/test_axil_ram.py::test_axil_ram[8]",
-    7.07833203766495
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[16-0]",
-    4.518617523834109
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[16-1]",
-    6.114853054285049
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[16-2]",
-    4.118833149783313
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[32-0]",
-    4.708139616064727
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[32-1]",
-    5.979810021817684
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[32-2]",
-    5.279176370240748
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[8-0]",
-    6.333443800918758
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[8-1]",
-    10.641177451238036
-  ],
-  [
-    "tb/axil_register/test_axil_register.py::test_axil_register[8-2]",
-    7.088530145585537
-  ]
-]
+{
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[16-16]": 16.55149355499998,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[16-32]": 12.992506153999784,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[16-8]": 23.427283254999566,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[32-16]": 32.3943988889996,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[32-32]": 27.955107253998904,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[32-8]": 43.362206458999026,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[8-16]": 13.573869208999895,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[8-32]": 11.490800184999898,
+    "tb/axi_adapter/test_axi_adapter.py::test_axi_adapter[8-8]": 15.735168381000221,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[16-16]": 33.353836090000186,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[16-32]": 20.248769097999684,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[16-8]": 51.293037969999205,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[32-16]": 63.92298587800087,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[32-32]": 52.97089826000138,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[32-8]": 96.84740839099868,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[8-16]": 21.140396054999655,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[8-32]": 15.657400774000052,
+    "tb/axi_axil_adapter/test_axi_axil_adapter.py::test_axi_axil_adapter[8-8]": 34.4241440650012,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_cdma[16-0]": 2.2340906140007064,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_cdma[16-1]": 6.962845431001369,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_cdma[32-0]": 2.50314003099993,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_cdma[32-1]": 32.01372177899975,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_cdma[8-0]": 2.555039637999471,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_cdma[8-1]": 2.6004991059999156,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[16-0]": 17.06440698262304,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[16-1]": 71.17776732705534,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[32-0]": 19.746693274006248,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[32-1]": 333.3781503010541,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[8-0]": 22.358843713067472,
+    "tb/axi_cdma/test_axi_cdma.py::test_axi_dma[8-1]": 23.01292904186994,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-1-16]": 14.546764873999564,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-1-32]": 12.184140269001546,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-1-8]": 15.672351635999803,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-4-16]": 23.15273890300068,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-4-32]": 22.692260683999848,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[1-4-8]": 28.82280899200032,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-1-16]": 22.568409074000556,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-1-32]": 21.950016454999968,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-1-8]": 28.414118459999372,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-4-16]": 52.219003694000094,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-4-32]": 53.12076682299812,
+    "tb/axi_crossbar/test_axi_crossbar.py::test_axi_crossbar[4-4-8]": 55.425677992999226,
+    "tb/axi_dma/test_axi_dma.py::test_axi_dma[0-16]": 3.573927465999077,
+    "tb/axi_dma/test_axi_dma.py::test_axi_dma[0-32]": 3.878325480998683,
+    "tb/axi_dma/test_axi_dma.py::test_axi_dma[0-8]": 4.8591888540013315,
+    "tb/axi_dma/test_axi_dma.py::test_axi_dma[1-16]": 6.393262116000187,
+    "tb/axi_dma/test_axi_dma.py::test_axi_dma[1-32]": 14.350008518000323,
+    "tb/axi_dma/test_axi_dma.py::test_axi_dma[1-8]": 4.563217420000001,
+    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[16-0]": 1.0206713159986975,
+    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[16-1]": 1.310706456000844,
+    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[32-0]": 1.0726173420025589,
+    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[32-1]": 2.250546541999938,
+    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[8-0]": 1.0676594179967651,
+    "tb/axi_dma_rd/test_axi_dma_rd.py::test_axi_dma_rd[8-1]": 1.052523229001963,
+    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[16-0]": 2.428294757000913,
+    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[16-1]": 4.221562293996612,
+    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[32-0]": 2.7786538979980833,
+    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[32-1]": 9.901468512000065,
+    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[8-0]": 3.0241602579990285,
+    "tb/axi_dma_wr/test_axi_dma_wr.py::test_axi_dma_wr[8-1]": 3.0477122140000574,
+    "tb/axi_dp_ram/test_axi_dp_ram.py::test_axi_dp_ram[16]": 36.79575799400118,
+    "tb/axi_dp_ram/test_axi_dp_ram.py::test_axi_dp_ram[32]": 67.65977214899976,
+    "tb/axi_dp_ram/test_axi_dp_ram.py::test_axi_dp_ram[8]": 20.204367477001142,
+    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[16-0]": 17.667089660002603,
+    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[16-1]": 18.817600910999317,
+    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[32-0]": 32.41384397100046,
+    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[32-1]": 34.11087355199925,
+    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[8-0]": 16.119127287998708,
+    "tb/axi_fifo/test_axi_fifo.py::test_axi_fifo[8-1]": 15.693368873000509,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-1-16]": 14.636136819999592,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-1-32]": 10.654607223001221,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-1-8]": 18.420183554999312,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-4-16]": 25.198256241001218,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-4-32]": 23.055804369001635,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[1-4-8]": 30.66613089800012,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-1-16]": 27.161321782001323,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-1-32]": 23.767740908999258,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-1-8]": 36.18018596700131,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-4-16]": 54.74918551800147,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-4-32]": 53.25885313700019,
+    "tb/axi_interconnect/test_axi_interconnect.py::test_axi_interconnect[4-4-8]": 63.69016409299911,
+    "tb/axi_ram/test_axi_ram.py::test_axi_ram[16]": 13.503427221998209,
+    "tb/axi_ram/test_axi_ram.py::test_axi_ram[32]": 23.29317438399994,
+    "tb/axi_ram/test_axi_ram.py::test_axi_ram[8]": 10.996470571002646,
+    "tb/axi_register/test_axi_register.py::test_axi_register[16-0]": 18.26301247899937,
+    "tb/axi_register/test_axi_register.py::test_axi_register[16-1]": 20.216187074000118,
+    "tb/axi_register/test_axi_register.py::test_axi_register[16-2]": 17.82943038999838,
+    "tb/axi_register/test_axi_register.py::test_axi_register[16-None]": 18.287662189000912,
+    "tb/axi_register/test_axi_register.py::test_axi_register[32-0]": 32.43775059899781,
+    "tb/axi_register/test_axi_register.py::test_axi_register[32-1]": 35.05503840000165,
+    "tb/axi_register/test_axi_register.py::test_axi_register[32-2]": 32.211851489000765,
+    "tb/axi_register/test_axi_register.py::test_axi_register[32-None]": 32.65695909000351,
+    "tb/axi_register/test_axi_register.py::test_axi_register[8-0]": 15.134742169000674,
+    "tb/axi_register/test_axi_register.py::test_axi_register[8-1]": 19.59268846100167,
+    "tb/axi_register/test_axi_register.py::test_axi_register[8-2]": 15.506567765,
+    "tb/axi_register/test_axi_register.py::test_axi_register[8-None]": 15.770099942998058,
+    "tb/axi_vfifo/test_axi_vfifo.py::test_axi_vfifo[512-2-512]": 0.00017186600052809808,
+    "tb/axi_vfifo_dec/test_axi_vfifo_dec.py::test_axi_vfifo_dec[512-256-4]": 390.48295094100104,
+    "tb/axi_vfifo_enc/test_axi_vfifo_enc.py::test_axi_vfifo_enc[512-256-4]": 96.44693806899886,
+    "tb/axi_vfifo_raw/test_axi_vfifo_raw.py::test_axi_vfifo_raw[16-2]": 51.74482788499881,
+    "tb/axi_vfifo_raw/test_axi_vfifo_raw.py::test_axi_vfifo_raw[32-1]": 47.44592839100005,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[16-16]": 2.1758817370009638,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[16-32]": 2.073606154999652,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[16-8]": 2.8712698399976944,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[32-16]": 2.119053749998784,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[32-32]": 1.7064911220004433,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[32-8]": 3.0089080090001517,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[8-16]": 2.9405542610002158,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[8-32]": 3.0483279959989886,
+    "tb/axil_adapter/test_axil_adapter.py::test_axil_adapter[8-8]": 3.1088732260013785,
+    "tb/axil_cdc/test_axil_cdc.py::test_axil_cdc[16]": 2.951410575000409,
+    "tb/axil_cdc/test_axil_cdc.py::test_axil_cdc[32]": 2.27689926200037,
+    "tb/axil_cdc/test_axil_cdc.py::test_axil_cdc[8]": 4.574279430000388,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[1-1-16]": 4.26495659000102,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[1-1-32]": 1.6992210180014808,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[1-1-8]": 5.381727486999807,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[1-4-16]": 3.70558896699913,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[1-4-32]": 3.182088380001005,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[1-4-8]": 4.171963999999207,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[4-1-16]": 3.7210824329995376,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[4-1-32]": 3.210320813999715,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[4-1-8]": 4.083671120000872,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[4-4-16]": 4.354586315999768,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[4-4-32]": 5.604944201997569,
+    "tb/axil_crossbar/test_axil_crossbar.py::test_axil_crossbar[4-4-8]": 5.119044160999692,
+    "tb/axil_dp_ram/test_axil_dp_ram.py::test_axil_dp_ram[16]": 2.0295156089978263,
+    "tb/axil_dp_ram/test_axil_dp_ram.py::test_axil_dp_ram[32]": 1.8591131459961616,
+    "tb/axil_dp_ram/test_axil_dp_ram.py::test_axil_dp_ram[8]": 2.0700432900011947,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-1-16]": 3.686295125002289,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-1-32]": 4.14725259700208,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-1-8]": 5.019193141999494,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-4-16]": 4.41761257899816,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-4-32]": 4.376560133001476,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[1-4-8]": 5.997599234000518,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-1-16]": 5.710705169998619,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-1-32]": 5.194172734998574,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-1-8]": 8.203576400999737,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-4-16]": 7.298555811001279,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-4-32]": 8.315074841000751,
+    "tb/axil_interconnect/test_axil_interconnect.py::test_axil_interconnect[4-4-8]": 9.444466426999497,
+    "tb/axil_ram/test_axil_ram.py::test_axil_ram[16]": 1.2227702269992733,
+    "tb/axil_ram/test_axil_ram.py::test_axil_ram[32]": 1.2510031170004368,
+    "tb/axil_ram/test_axil_ram.py::test_axil_ram[8]": 1.484230268997635,
+    "tb/axil_reg_if/test_axil_reg_if.py::test_axil_reg_if[16]": 2.1516942589987593,
+    "tb/axil_reg_if/test_axil_reg_if.py::test_axil_reg_if[32]": 1.89880368500053,
+    "tb/axil_reg_if/test_axil_reg_if.py::test_axil_reg_if[8]": 3.2746555829980935,
+    "tb/axil_register/test_axil_register.py::test_axil_register[16-0]": 1.5438506320006127,
+    "tb/axil_register/test_axil_register.py::test_axil_register[16-1]": 1.9284004749988526,
+    "tb/axil_register/test_axil_register.py::test_axil_register[16-2]": 1.5138920610006608,
+    "tb/axil_register/test_axil_register.py::test_axil_register[32-0]": 1.4050410570016538,
+    "tb/axil_register/test_axil_register.py::test_axil_register[32-1]": 1.551732689000346,
+    "tb/axil_register/test_axil_register.py::test_axil_register[32-2]": 1.2854627730011998,
+    "tb/axil_register/test_axil_register.py::test_axil_register[8-0]": 2.138922256999649,
+    "tb/axil_register/test_axil_register.py::test_axil_register[8-1]": 2.6306142049998016,
+    "tb/axil_register/test_axil_register.py::test_axil_register[8-2]": 2.073224247998951
+}
