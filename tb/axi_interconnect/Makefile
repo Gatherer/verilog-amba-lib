@@ -24,6 +24,12 @@ TOPLEVEL_LANG = verilog
 SIM ?= verilator
 WAVES ?= 0
 
+# all generated files go to tb/results/<test>/
+RESULTS_DIR         = ../results/$(notdir $(CURDIR))
+SIM_BUILD           = $(RESULTS_DIR)/sim_build
+COCOTB_RESULTS_FILE = $(RESULTS_DIR)/results.xml
+export PYTHONPYCACHEPREFIX = $(abspath $(RESULTS_DIR))/__pycache__
+
 COCOTB_HDL_TIMEUNIT = 1ns
 COCOTB_HDL_TIMEPRECISION = 1ps
 
@@ -34,7 +40,7 @@ DUT      = axi_interconnect
 WRAPPER  = $(DUT)_wrap_$(S_COUNT)x$(M_COUNT)
 COCOTB_TOPLEVEL     = $(WRAPPER)
 COCOTB_TEST_MODULES = test_$(DUT)
-VERILOG_SOURCES += $(WRAPPER).v
+VERILOG_SOURCES += $(RESULTS_DIR)/$(WRAPPER).v
 VERILOG_SOURCES += ../../rtl/$(DUT).v
 VERILOG_SOURCES += ../../rtl/arbiter.v
 VERILOG_SOURCES += ../../rtl/priority_encoder.v
@@ -63,7 +69,7 @@ ifeq ($(SIM), icarus)
 	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(COCOTB_TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
-		VERILOG_SOURCES += iverilog_dump.v
+		VERILOG_SOURCES += $(RESULTS_DIR)/iverilog_dump.v
 		COMPILE_ARGS += -s iverilog_dump
 	endif
 else ifeq ($(SIM), verilator)
@@ -73,23 +79,25 @@ else ifeq ($(SIM), verilator)
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst
+		SIM_ARGS += --trace --trace-file $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
 	endif
 endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-$(WRAPPER).v: ../../rtl/$(DUT)_wrap.py
-	python3 $< -p $(S_COUNT) $(M_COUNT)
+$(RESULTS_DIR)/$(WRAPPER).v: ../../rtl/$(DUT)_wrap.py | $(SIM_BUILD)
+	python3 $< -p $(S_COUNT) $(M_COUNT) -o $@
 
-iverilog_dump.v:
+$(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)
 	echo 'module iverilog_dump();' > $@
 	echo 'initial begin' >> $@
-	echo '    $$dumpfile("$(COCOTB_TOPLEVEL).fst");' >> $@
+	echo '    $$dumpfile("$(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst");' >> $@
 	echo '    $$dumpvars(0, $(COCOTB_TOPLEVEL));' >> $@
 	echo 'end' >> $@
 	echo 'endmodule' >> $@
 
 clean::
-	@rm -rf iverilog_dump.v
-	@rm -rf dump.fst $(COCOTB_TOPLEVEL).fst
-	@rm -rf *_wrap_*.v
+	@rm -rf $(RESULTS_DIR)/iverilog_dump.v
+	@rm -rf $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
+	@rm -rf $(RESULTS_DIR)/__pycache__
+	@rm -rf $(RESULTS_DIR)/*_wrap_*.v

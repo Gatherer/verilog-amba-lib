@@ -5,3 +5,10 @@
 *.kate-swp
 
 **/.venv
+
+# simulation outputs (build, results.xml, waves, generated wrappers)
+tb/results/
+
+# Python / pytest caches
+__pycache__/
+.pytest_cache/

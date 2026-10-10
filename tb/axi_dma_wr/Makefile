@@ -24,6 +24,12 @@ TOPLEVEL_LANG = verilog
 SIM ?= verilator
 WAVES ?= 0
 
+# all generated files go to tb/results/<test>/
+RESULTS_DIR         = ../results/$(notdir $(CURDIR))
+SIM_BUILD           = $(RESULTS_DIR)/sim_build
+COCOTB_RESULTS_FILE = $(RESULTS_DIR)/results.xml
+export PYTHONPYCACHEPREFIX = $(abspath $(RESULTS_DIR))/__pycache__
+
 COCOTB_HDL_TIMEUNIT = 1ns
 COCOTB_HDL_TIMEPRECISION = 1ps
 
@@ -59,7 +65,7 @@ ifeq ($(SIM), icarus)
 	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(COCOTB_TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
-		VERILOG_SOURCES += iverilog_dump.v
+		VERILOG_SOURCES += $(RESULTS_DIR)/iverilog_dump.v
 		COMPILE_ARGS += -s iverilog_dump
 	endif
 else ifeq ($(SIM), verilator)
@@ -69,19 +75,21 @@ else ifeq ($(SIM), verilator)
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst
+		SIM_ARGS += --trace --trace-file $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
 	endif
 endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-iverilog_dump.v:
+$(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)
 	echo 'module iverilog_dump();' > $@
 	echo 'initial begin' >> $@
-	echo '    $$dumpfile("$(COCOTB_TOPLEVEL).fst");' >> $@
+	echo '    $$dumpfile("$(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst");' >> $@
 	echo '    $$dumpvars(0, $(COCOTB_TOPLEVEL));' >> $@
 	echo 'end' >> $@
 	echo 'endmodule' >> $@
 
 clean::
-	@rm -rf iverilog_dump.v
-	@rm -rf dump.fst $(COCOTB_TOPLEVEL).fst
+	@rm -rf $(RESULTS_DIR)/iverilog_dump.v
+	@rm -rf $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
+	@rm -rf $(RESULTS_DIR)/__pycache__
