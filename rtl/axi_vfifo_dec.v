@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2023 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -638,7 +639,7 @@ always @(posedge clk) begin
         out_seg_offset_reg <= 0;
         output_offset_reg <= 0;
         out_seg_consumed_reg <= 0;
-        input_valid_int_next <= 1'b0;
+        input_valid_int_reg <= 0;
         out_ctrl_en_reg <= 1'b0;
     end
 end
