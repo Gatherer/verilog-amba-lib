@@ -1,6 +1,7 @@
 """
 
 Copyright (c) 2023 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,15 +27,15 @@ import itertools
 import logging
 import os
 
-import cocotb_test.simulator
 import pytest
 
 import cocotb
 
 from cocotb.queue import Queue
 from cocotb.clock import Clock
+from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge, Event
-from cocotb.regression import TestFactory
+from cocotb_tools.runner import get_runner
 from cocotb_bus.bus import Bus
 
 from cocotbext.axi import AxiBus, AxiRam
@@ -86,14 +87,14 @@ class DataSource:
         # queue per segment
         self.queue = [Queue() for x in range(self.seg_count)]
 
-        self.bus.data.setimmediatevalue(0)
-        self.bus.valid.setimmediatevalue(0)
+        self.bus.data.value = Immediate(0)
+        self.bus.valid.value = Immediate(0)
 
         cocotb.start_soon(self._run())
 
     def set_pause_generator(self, generator=None):
         if self._pause_cr is not None:
-            self._pause_cr.kill()
+            self._pause_cr.cancel()
             self._pause_cr = None
 
         self._pause_generator = generator
@@ -141,10 +142,10 @@ class DataSource:
         while True:
             await clock_edge_event
 
-            ready_sample = self.bus.ready.value.integer
+            ready_sample = int(self.bus.ready.value)
 
             if self.reset is not None and self.reset.value:
-                self.bus.valid.setimmediatevalue(0)
+                self.bus.valid.value = Immediate(0)
                 valid = 0
                 self.clear()
                 continue
@@ -206,14 +207,14 @@ class DataSink:
 
         self.read_queue = bytearray()
 
-        self.bus.data.setimmediatevalue(0)
-        self.bus.valid.setimmediatevalue(0)
+        self.bus.data.value = Immediate(0)
+        self.bus.valid.value = Immediate(0)
 
         cocotb.start_soon(self._run())
 
     def set_pause_generator(self, generator=None):
         if self._pause_cr is not None:
-            self._pause_cr.kill()
+            self._pause_cr.cancel()
             self._pause_cr = None
 
         self._pause_generator = generator
@@ -274,14 +275,14 @@ class DataSink:
         while True:
             await clock_edge_event
 
-            valid_sample = self.bus.valid.value.integer
+            valid_sample = int(self.bus.valid.value)
 
             if valid_sample:
-                data_sample = self.bus.data.value.integer
+                data_sample = int(self.bus.data.value)
 
             if self.reset is not None and self.reset.value:
                 if has_ready:
-                    self.bus.ready.setimmediatevalue(0)
+                    self.bus.ready.value = Immediate(0)
                 ready = 0
                 continue
 
@@ -328,25 +329,25 @@ class TB(object):
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
-        cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
         # streaming data in
-        cocotb.start_soon(Clock(dut.input_clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.input_clk, 10, unit="ns").start())
         self.source = DataSource(DataBus.from_prefix(dut, "input"), dut.input_clk, dut.input_rst_out)
 
         # streaming data out
-        cocotb.start_soon(Clock(dut.output_clk, 10, units="ns").start())
+        cocotb.start_soon(Clock(dut.output_clk, 10, unit="ns").start())
         self.sink = DataSink(DataBus.from_prefix(dut, "output"), dut.output_clk, dut.output_rst_out)
 
         # AXI interface
         self.axi_ram = AxiRam(AxiBus.from_prefix(dut, "m_axi"), dut.clk, dut.rst, size=2**16)
 
-        dut.rst_req_in.setimmediatevalue(0)
+        dut.rst_req_in.value = Immediate(0)
 
-        dut.cfg_fifo_base_addr.setimmediatevalue(0)
-        dut.cfg_fifo_size_mask.setimmediatevalue(0)
-        dut.cfg_enable.setimmediatevalue(0)
-        dut.cfg_reset.setimmediatevalue(0)
+        dut.cfg_fifo_base_addr.value = Immediate(0)
+        dut.cfg_fifo_size_mask.value = Immediate(0)
+        dut.cfg_enable.value = Immediate(0)
+        dut.cfg_reset.value = Immediate(0)
 
     def set_stream_idle_generator(self, generator=None):
         if generator:
@@ -368,9 +369,9 @@ class TB(object):
             self.axi_ram.read_if.ar_channel.set_pause_generator(generator())
 
     async def reset(self):
-        self.dut.rst.setimmediatevalue(0)
-        self.dut.input_rst.setimmediatevalue(0)
-        self.dut.output_rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
+        self.dut.input_rst.value = Immediate(0)
+        self.dut.output_rst.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -385,7 +386,7 @@ class TB(object):
             await RisingEdge(self.dut.clk)
 
     async def reset_axi(self):
-        self.dut.rst.setimmediatevalue(0)
+        self.dut.rst.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
@@ -396,7 +397,7 @@ class TB(object):
             await RisingEdge(self.dut.clk)
 
     async def reset_source(self):
-        self.dut.input_rst.setimmediatevalue(0)
+        self.dut.input_rst.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.input_clk)
         self.dut.input_rst.value = 1
@@ -407,7 +408,7 @@ class TB(object):
             await RisingEdge(self.dut.input_clk)
 
     async def reset_sink(self):
-        self.dut.output_rst.setimmediatevalue(0)
+        self.dut.output_rst.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.output_clk)
         self.dut.output_rst.value = 1
@@ -418,7 +419,7 @@ class TB(object):
             await RisingEdge(self.dut.output_clk)
 
     async def reset_cfg(self):
-        self.dut.cfg_reset.setimmediatevalue(0)
+        self.dut.cfg_reset.value = Immediate(0)
         for k in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.cfg_reset.value = 1
@@ -444,9 +445,9 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
     tb.set_axi_idle_generator(axi_idle_inserter)
     tb.set_axi_backpressure_generator(axi_backpressure_inserter)
 
-    dut.cfg_fifo_base_addr.setimmediatevalue(0)
-    dut.cfg_fifo_size_mask.setimmediatevalue(2**len(dut.m_axi_awaddr)-1)
-    dut.cfg_enable.setimmediatevalue(1)
+    dut.cfg_fifo_base_addr.value = Immediate(0)
+    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_enable.value = Immediate(1)
 
     test_frames = []
 
@@ -483,9 +484,9 @@ async def run_test_init_sink_pause(dut):
 
     await tb.reset()
 
-    dut.cfg_fifo_base_addr.setimmediatevalue(0)
-    dut.cfg_fifo_size_mask.setimmediatevalue(2**len(dut.m_axi_awaddr)-1)
-    dut.cfg_enable.setimmediatevalue(1)
+    dut.cfg_fifo_base_addr.value = Immediate(0)
+    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
@@ -522,9 +523,9 @@ async def run_test_init_sink_pause_reset(dut, reset_type=TB.reset):
 
     await tb.reset()
 
-    dut.cfg_fifo_base_addr.setimmediatevalue(0)
-    dut.cfg_fifo_size_mask.setimmediatevalue(2**len(dut.m_axi_awaddr)-1)
-    dut.cfg_enable.setimmediatevalue(1)
+    dut.cfg_fifo_base_addr.value = Immediate(0)
+    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
@@ -571,9 +572,9 @@ async def run_test_shift_in_reset(dut, reset_type=TB.reset):
 
     await tb.reset()
 
-    dut.cfg_fifo_base_addr.setimmediatevalue(0)
-    dut.cfg_fifo_size_mask.setimmediatevalue(2**len(dut.m_axi_awaddr)-1)
-    dut.cfg_enable.setimmediatevalue(1)
+    dut.cfg_fifo_base_addr.value = Immediate(0)
+    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_enable.value = Immediate(1)
 
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
 
@@ -616,9 +617,9 @@ async def run_test_shift_out_reset(dut, reset_type=TB.reset):
 
     await tb.reset()
 
-    dut.cfg_fifo_base_addr.setimmediatevalue(0)
-    dut.cfg_fifo_size_mask.setimmediatevalue(2**len(dut.m_axi_awaddr)-1)
-    dut.cfg_enable.setimmediatevalue(1)
+    dut.cfg_fifo_base_addr.value = Immediate(0)
+    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_enable.value = Immediate(1)
 
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
 
@@ -627,7 +628,7 @@ async def run_test_shift_out_reset(dut, reset_type=TB.reset):
 
     await tb.source.write(test_data)
 
-    while not dut.output_valid:
+    while not dut.output_valid.value:
         await RisingEdge(dut.clk)
 
     for k in range(8):
@@ -664,9 +665,9 @@ async def run_test_overflow(dut):
 
     await tb.reset()
 
-    dut.cfg_fifo_base_addr.setimmediatevalue(0)
-    dut.cfg_fifo_size_mask.setimmediatevalue(2**len(dut.m_axi_awaddr)-1)
-    dut.cfg_enable.setimmediatevalue(1)
+    dut.cfg_fifo_base_addr.value = Immediate(0)
+    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
@@ -709,48 +710,43 @@ def incrementing_payload(length):
     return bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
 
-if cocotb.SIM_NAME:
+if getattr(cocotb, "SIM_NAME", None):
 
-    factory = TestFactory(run_test)
-    factory.add_option("payload_lengths", [size_list])
-    factory.add_option("payload_data", [incrementing_payload])
-    factory.add_option(("space",
-            "stream_idle_inserter", "stream_backpressure_inserter",
-            "axi_idle_inserter", "axi_backpressure_inserter"), [
-        (False, None, None, None, None),
-        (False, cycle_pause, None, None, None),
-        (False, None, cycle_pause, None, None),
-        (False, None, None, cycle_pause, None),
-        (False, None, None, None, cycle_pause),
-        (True,  None, None, None, None),
-        (True,  cycle_pause, None, None, None),
-        (True,  None, cycle_pause, None, None),
-        (True,  None, None, cycle_pause, None),
-        (True,  None, None, None, cycle_pause),
-    ])
-    factory.generate_tests()
+    test_params = cocotb.parametrize(
+        ("payload_lengths", [size_list]),
+        ("payload_data", [incrementing_payload]),
+        (("space",
+                "stream_idle_inserter", "stream_backpressure_inserter",
+                "axi_idle_inserter", "axi_backpressure_inserter"), [
+            (False, None, None, None, None),
+            (False, cycle_pause, None, None, None),
+            (False, None, cycle_pause, None, None),
+            (False, None, None, cycle_pause, None),
+            (False, None, None, None, cycle_pause),
+            (True,  None, None, None, None),
+            (True,  cycle_pause, None, None, None),
+            (True,  None, cycle_pause, None, None),
+            (True,  None, None, cycle_pause, None),
+            (True,  None, None, None, cycle_pause),
+        ]),
+    )
 
-    for test in [
-                run_test_init_sink_pause,
-                run_test_overflow
-            ]:
+    run_test = cocotb.test(test_params(run_test))
 
-        factory = TestFactory(test)
-        factory.generate_tests()
+    run_test_init_sink_pause = cocotb.test(run_test_init_sink_pause)
+    run_test_overflow = cocotb.test(run_test_overflow)
 
-    for test in [
-                run_test_init_sink_pause_reset,
-                run_test_shift_in_reset,
-                run_test_shift_out_reset,
-            ]:
+    test_params = cocotb.parametrize(
+        ("reset_type", [TB.reset, TB.reset_source,
+                TB.reset_sink, TB.reset_axi, TB.reset_cfg]),
+    )
 
-        factory = TestFactory(test)
-        factory.add_option("reset_type", [TB.reset, TB.reset_source,
-                TB.reset_sink, TB.reset_axi, TB.reset_cfg])
-        factory.generate_tests()
+    run_test_init_sink_pause_reset = cocotb.test(test_params(run_test_init_sink_pause_reset))
+    run_test_shift_in_reset = cocotb.test(test_params(run_test_shift_in_reset))
+    run_test_shift_out_reset = cocotb.test(test_params(run_test_shift_out_reset))
 
 
-# cocotb-test
+# cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
 rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
@@ -793,12 +789,22 @@ def test_axi_vfifo_raw(request, seg_width, seg_cnt):
     sim_build = os.path.join(tests_dir, "sim_build",
         request.node.name.replace('[', '-').replace(']', ''))
 
-    cocotb_test.simulator.run(
-        python_search=[tests_dir],
-        verilog_sources=verilog_sources,
-        toplevel=toplevel,
-        module=module,
+    runner = get_runner("verilator")
+
+    runner.build(
+        sources=verilog_sources,
+        hdl_toplevel=toplevel,
         parameters=parameters,
-        sim_build=sim_build,
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-CASEINCOMPLETE", "-Wno-UNSIGNED"],
+        build_dir=sim_build,
+        timescale=("1ns", "1ps"),
+    )
+
+    runner.test(
+        test_module=module,
+        hdl_toplevel=toplevel,
+        build_dir=sim_build,
+        test_dir=tests_dir,
+        results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )
