@@ -503,4 +503,11 @@ Read
 
 ## Testing
 
-Running the included testbenches requires [cocotb](https://github.com/cocotb/cocotb), [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi), and [Icarus Verilog](http://iverilog.icarus.com/).  The testbenches can be run with pytest directly (requires [cocotb-test](https://github.com/themperek/cocotb-test)), pytest via tox, or via cocotb makefiles.
+Running the included testbenches requires [Verilator](https://www.veripool.org/verilator/) in `PATH`.  Python dependencies ([cocotb](https://github.com/cocotb/cocotb), [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi), pytest) are pinned in `tox.ini` and installed into `.venv` by the top-level Makefile.
+
+    make                                      # create venv and run all tests
+    make test TESTS=tb/axi_ram ARGS="-k 32"   # single testbench, filtered
+    make test JOBS=auto                       # parallel regression
+    make clean                                # remove simulation outputs
+
+Alternatively run pytest via tox, or the cocotb makefile in `tb/<module>/`.
