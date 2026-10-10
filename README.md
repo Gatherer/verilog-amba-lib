@@ -1,20 +1,23 @@
-# Verilog AXI Components Readme
+# Verilog and System Verilog AMBA Components Readme
 
-[![Build Status](https://github.com/alexforencich/verilog-axi/workflows/Regression%20Tests/badge.svg?branch=master)](https://github.com/alexforencich/verilog-axi/actions/)
+[![Build Status](https://github.com/Gatherer/verilog-amba-lib/actions/workflows/regression-tests.yml/badge.svg?branch=main)](https://github.com/Gatherer/verilog-amba-lib/actions/workflows/regression-tests.yml)
 
-For more information and updates: http://alexforencich.com/wiki/en/verilog/axi/start
+The goal is to keeping the project with this license alive.
+I will basically keep the .v version of the IP and add .sv variants with
+over time on a need basis.
 
-GitHub repository: https://github.com/alexforencich/verilog-axi
-
-## Deprecation Notice
-
-This repository is superseded by https://github.com/fpganinja/taxi.  All new features and bug fixes will be applied there, and commercial support is also available.  As a result, this repo is deprecated and will not receive any future maintenance or support.
 
 ## Introduction
 
 Collection of AXI4 and AXI4 lite bus components.  Most components are fully
 parametrizable in interface widths.  Includes full cocotb testbenches that
 utilize [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi).
+
+Original GitHub repository: https://github.com/alexforencich/verilog-axis.
+
+This origianal repository is superseded by https://github.com/fpganinja/taxi.
+All new features and bug fixes will be applied there, and commercial support is also available.
+As a result, this repo is deprecated and will not receive any future maintenance or support.
 
 ## Documentation
 
@@ -430,7 +433,7 @@ registers can be individually bypassed.
 
 Write
 
-                ___     ___     ___     ___     ___    
+                ___     ___     ___     ___     ___
     clk     ___/   \___/   \___/   \___/   \___/   \___
                 _______
     awid    XXXX_ID____XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -468,7 +471,7 @@ Write
 
 Read
 
-                ___     ___     ___     ___     ___    
+                ___     ___     ___     ___     ___
     clk     ___/   \___/   \___/   \___/   \___/   \___
                 _______
     arid    XXXX_ID____XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
