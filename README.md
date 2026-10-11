@@ -794,11 +794,11 @@ bad frame
 
 ## Testing
 
-Running the included testbenches requires [Verilator](https://www.veripool.org/verilator/) in `PATH`.  Python dependencies ([cocotb](https://github.com/cocotb/cocotb), [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi), pytest) are pinned in `tox.ini` and installed into `.venv` by the top-level Makefile.
+Running the included testbenches requires [Verilator](https://www.veripool.org/verilator/) in `PATH`.  Python dependencies ([cocotb](https://github.com/cocotb/cocotb), [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi), pytest) are pinned in `requirements.txt` and installed into `.venv` by the top-level Makefile.
 
     make                                      # create venv and run all tests
     make test TESTS=tb/axi_ram ARGS="-k 32"   # single testbench, filtered
     make test JOBS=auto                       # parallel regression
     make clean                                # remove simulation outputs
 
-Alternatively run pytest via tox, or the cocotb makefile in `tb/<module>/`.
+Alternatively run `pytest` directly (after `pip install -r requirements.txt`), or the cocotb makefile in `tb/<module>/`.

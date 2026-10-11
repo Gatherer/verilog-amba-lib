@@ -1,7 +1,7 @@
 # Top-level Makefile: create Python venv and run cocotb tests (Verilator)
 #
 #   make            create venv (if needed) and run all tests
-#   make venv       create/update venv from tox.ini deps
+#   make venv       create/update venv from requirements.txt
 #   make test TESTS=tb/axi_ram ARGS="-k 32"   serial, live output (default)
 #   make test JOBS=auto                       parallel (regression), output only on failure
 #   make clean      remove simulation build outputs
@@ -22,19 +22,16 @@ export PYTHONPYCACHEPREFIX := $(abspath tb/results/__pycache__)
 VENV_BIN   := $(VENV)/bin
 VENV_STAMP := $(VENV)/.installed
 
-# package pins are maintained in tox.ini [testenv] deps
-DEPS = $(shell sed -n '/^deps =/,/^$$/{/^    /p}' tox.ini | sed 's/ //g')
-
 .PHONY: all venv test check-verilator clean distclean
 
 all: test
 
 venv: $(VENV_STAMP)
 
-$(VENV_STAMP): tox.ini
+$(VENV_STAMP): requirements.txt
 	$(PYTHON) -m venv $(VENV)
 	$(VENV_BIN)/pip install --upgrade pip
-	$(VENV_BIN)/pip install $(DEPS)
+	$(VENV_BIN)/pip install -r requirements.txt
 	touch $@
 
 check-verilator:
