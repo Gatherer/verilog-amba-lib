@@ -145,7 +145,7 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common', 'v'))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common'))
 results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
@@ -153,15 +153,23 @@ if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
+# HDL variants: source file extension and verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNOPTFLAT"],
+    "sv": [],
+}
+
+
 @pytest.mark.parametrize("lsb_high_priority", [0, 1])
 @pytest.mark.parametrize("width", [2, 3, 5, 8, 32, 64])
-def test_priority_encoder(request, width, lsb_high_priority):
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_priority_encoder(request, hdl, width, lsb_high_priority):
     dut = "priority_encoder"
     module = os.path.splitext(os.path.basename(__file__))[0]
     toplevel = dut
 
     verilog_sources = [
-        os.path.join(rtl_dir, f"{dut}.v"),
+        os.path.join(rtl_dir, hdl, f"{dut}.{hdl}"),
     ]
 
     parameters = {}
@@ -180,7 +188,7 @@ def test_priority_encoder(request, width, lsb_high_priority):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNOPTFLAT"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
