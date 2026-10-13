@@ -6,6 +6,12 @@
 #   make test JOBS=auto                       parallel (regression), output only on failure
 #   make clean      remove simulation build outputs
 #   make distclean  clean + remove venv
+#
+#   update all test durations
+#   make test JOBS=auto ARGS="--store-durations --clean-durations"
+
+#   update only test durations for one test, in this example priority_encoder
+#   make test JOBS=auto TESTS=tb/priority_encoder ARGS="--store-durations"
 
 PYTHON ?= python3
 VENV   ?= .venv
