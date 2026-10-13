@@ -73,13 +73,20 @@ generate
     // compress down to single valid bit and encoded bus
     for (l = 1; l < LEVELS; l = l + 1) begin : loop_levels
         for (n = 0; n < W/(2*2**l); n = n + 1) begin : loop_compress
+            // encoded values of the lower and upper input pair
+            wire [l-1:0] enc_lo = stage_enc[l-1][(n*2+1)*l-1:(n*2+0)*l];
+            wire [l-1:0] enc_hi = stage_enc[l-1][(n*2+2)*l-1:(n*2+1)*l];
+            wire [l:0]   enc_out;
+
             assign stage_valid[l][n] = |stage_valid[l-1][n*2+1:n*2];
+            assign stage_enc[l][(n+1)*(l+1)-1:n*(l+1)] = enc_out;
+
             if (LSB_HIGH_PRIORITY) begin : g_lsb_high
                 // bit 0 is highest priority
-                assign stage_enc[l][(n+1)*(l+1)-1:n*(l+1)] = stage_valid[l-1][n*2+0] ? {1'b0, stage_enc[l-1][(n*2+1)*l-1:(n*2+0)*l]} : {1'b1, stage_enc[l-1][(n*2+2)*l-1:(n*2+1)*l]};
+                assign enc_out = stage_valid[l-1][n*2+0] ? {1'b0, enc_lo} : {1'b1, enc_hi};
             end else begin : g_msb_high
                 // bit 0 is lowest priority
-                assign stage_enc[l][(n+1)*(l+1)-1:n*(l+1)] = stage_valid[l-1][n*2+1] ? {1'b1, stage_enc[l-1][(n*2+2)*l-1:(n*2+1)*l]} : {1'b0, stage_enc[l-1][(n*2+1)*l-1:(n*2+0)*l]};
+                assign enc_out = stage_valid[l-1][n*2+1] ? {1'b1, enc_hi} : {1'b0, enc_lo};
             end
         end
     end
