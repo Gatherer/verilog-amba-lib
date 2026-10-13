@@ -47,6 +47,7 @@ module priority_encoder #
 
 localparam LEVELS = WIDTH > 2 ? $clog2(WIDTH) : 1;
 localparam W = 2**LEVELS;
+localparam ENC_W = WIDTH > 1 ? $clog2(WIDTH) : 1;
 
 // pad input to even power of two
 wire [W-1:0] input_padded = {{W-WIDTH{1'b0}}, input_unencoded};
@@ -85,7 +86,7 @@ generate
 endgenerate
 
 assign output_valid = stage_valid[LEVELS-1][0];
-assign output_encoded = stage_enc[LEVELS-1];
+assign output_encoded = stage_enc[LEVELS-1][ENC_W-1:0];
 assign output_unencoded = 1 << output_encoded;
 
 endmodule
