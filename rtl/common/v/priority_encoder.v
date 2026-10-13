@@ -39,10 +39,10 @@ module priority_encoder #
     parameter LSB_HIGH_PRIORITY = 0
 )
 (
-    input  wire [WIDTH-1:0]         input_unencoded,
-    output wire                     output_valid,
-    output wire [$clog2(WIDTH)-1:0] output_encoded,
-    output wire [WIDTH-1:0]         output_unencoded
+    input  wire [WIDTH-1:0]                           input_unencoded,
+    output wire                                       output_valid,
+    output wire [(WIDTH > 1 ? $clog2(WIDTH) : 1)-1:0] output_encoded,
+    output wire [WIDTH-1:0]                           output_unencoded
 );
 
 localparam LEVELS = WIDTH > 2 ? $clog2(WIDTH) : 1;
