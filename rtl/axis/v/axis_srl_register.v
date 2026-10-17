@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2014-2018 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -123,8 +124,8 @@ integer i;
 
 initial begin
     for (i = 0; i < 2; i = i + 1) begin
-        data_reg[i] <= 0;
-        valid_reg[i] <= 0;
+        data_reg[i] = 0;
+        valid_reg[i] = 0;
     end
 end
 

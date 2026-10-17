@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2018 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -282,7 +283,7 @@ generate
 
     for (n = 0; n < S_INT_THREADS; n = n + 1) begin
         initial begin
-            thread_count_reg[n] <= 0;
+            thread_count_reg[n] = 0;
         end
 
         assign thread_active[n] = thread_count_reg[n] != 0;
