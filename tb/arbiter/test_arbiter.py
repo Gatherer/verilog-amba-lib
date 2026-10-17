@@ -252,8 +252,7 @@ if tests_dir not in sys.path:
 # HDL variants: source file extension and verilator build args
 hdl_variants = {
     "v": ["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNOPTFLAT"],
-    # TODO: drop -Wno-WIDTH once the width warnings in arbiter.sv are fixed
-    "sv": ["-Wno-WIDTH"],
+    "sv": [],
 }
 
 

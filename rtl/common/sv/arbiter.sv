@@ -50,9 +50,9 @@ module arbiter #(
     input  wire  [PORTS-1:0] request,
     input  wire  [PORTS-1:0] acknowledge,
 
-    output logic [PORTS-1:0] grant         = '0,
-    output logic             grant_valid   = 1'b0,
-    output logic [ENC_W-1:0] grant_encoded = '0
+    output logic [PORTS-1:0] grant,
+    output logic             grant_valid,
+    output logic [ENC_W-1:0] grant_encoded
 );
 
 if (PORTS < 1) begin : g_param_check
@@ -78,7 +78,7 @@ priority_encoder_inst (
     .output_unencoded(request_mask)
 );
 
-logic [PORTS-1:0] mask_reg = '0, mask_next;
+logic [PORTS-1:0] mask_reg, mask_next;
 
 logic             masked_request_valid;
 logic [ENC_W-1:0] masked_request_index;
@@ -101,12 +101,12 @@ always_comb begin
     grant_encoded_next = '0;
     mask_next = mask_reg;
 
-    if (ARB_BLOCK && !ARB_BLOCK_ACK && grant & request) begin
+    if (ARB_BLOCK && !ARB_BLOCK_ACK && |(grant & request)) begin
         // granted request still asserted; hold it
         grant_valid_next = grant_valid;
         grant_next = grant;
         grant_encoded_next = grant_encoded;
-    end else if (ARB_BLOCK && ARB_BLOCK_ACK && grant_valid && !(grant & acknowledge)) begin
+    end else if (ARB_BLOCK && ARB_BLOCK_ACK && grant_valid && !(|(grant & acknowledge))) begin
         // granted request not yet acknowledged; hold it
         grant_valid_next = grant_valid;
         grant_next = grant;
@@ -118,18 +118,18 @@ always_comb begin
                 grant_next = masked_request_mask;
                 grant_encoded_next = masked_request_index;
                 if (ARB_LSB_HIGH_PRIORITY) begin
-                    mask_next = {PORTS{1'b1}} << (masked_request_index + 1);
+                    mask_next = {PORTS{1'b1}} << (int'(masked_request_index) + 1);
                 end else begin
-                    mask_next = {PORTS{1'b1}} >> (PORTS - masked_request_index);
+                    mask_next = {PORTS{1'b1}} >> (PORTS - int'(masked_request_index));
                 end
             end else begin
                 grant_valid_next = 1'b1;
                 grant_next = request_mask;
                 grant_encoded_next = request_index;
                 if (ARB_LSB_HIGH_PRIORITY) begin
-                    mask_next = {PORTS{1'b1}} << (request_index + 1);
+                    mask_next = {PORTS{1'b1}} << (int'(request_index) + 1);
                 end else begin
-                    mask_next = {PORTS{1'b1}} >> (PORTS - request_index);
+                    mask_next = {PORTS{1'b1}} >> (PORTS - int'(request_index));
                 end
             end
         end else begin
