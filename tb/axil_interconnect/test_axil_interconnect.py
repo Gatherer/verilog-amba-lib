@@ -210,7 +210,7 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil', 'v'))
 common_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common', 'v'))
 results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
 
