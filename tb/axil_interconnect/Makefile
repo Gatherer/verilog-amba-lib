@@ -41,7 +41,7 @@ WRAPPER  = $(DUT)_wrap_$(S_COUNT)x$(M_COUNT)
 COCOTB_TOPLEVEL     = $(WRAPPER)
 COCOTB_TEST_MODULES = test_$(DUT)
 VERILOG_SOURCES += $(RESULTS_DIR)/$(WRAPPER).v
-VERILOG_SOURCES += ../../rtl/axi/v/$(DUT).v
+VERILOG_SOURCES += ../../rtl/axil/v/$(DUT).v
 VERILOG_SOURCES += ../../rtl/common/v/arbiter.v
 VERILOG_SOURCES += ../../rtl/common/v/priority_encoder.v
 
@@ -73,7 +73,7 @@ endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-$(RESULTS_DIR)/$(WRAPPER).v: ../../rtl/axi/v/$(DUT)_wrap.py | $(SIM_BUILD)
+$(RESULTS_DIR)/$(WRAPPER).v: ../../rtl/axil/v/$(DUT)_wrap.py | $(SIM_BUILD)
 	python3 $< -p $(S_COUNT) $(M_COUNT) -o $@
 
 $(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)

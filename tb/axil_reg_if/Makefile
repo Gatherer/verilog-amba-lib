@@ -37,9 +37,9 @@ export COCOTB_RESOLVE_X ?= RANDOM
 DUT      = axil_reg_if
 COCOTB_TOPLEVEL     = $(DUT)
 COCOTB_TEST_MODULES = test_$(DUT)
-VERILOG_SOURCES += ../../rtl/axi/v/$(DUT).v
-VERILOG_SOURCES += ../../rtl/axi/v/$(DUT)_rd.v
-VERILOG_SOURCES += ../../rtl/axi/v/$(DUT)_wr.v
+VERILOG_SOURCES += ../../rtl/axil/v/$(DUT).v
+VERILOG_SOURCES += ../../rtl/axil/v/$(DUT)_rd.v
+VERILOG_SOURCES += ../../rtl/axil/v/$(DUT)_wr.v
 
 # module parameters
 export PARAM_DATA_WIDTH := 32
