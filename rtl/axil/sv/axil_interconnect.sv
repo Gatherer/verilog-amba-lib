@@ -32,6 +32,7 @@ THE SOFTWARE.
 /*
  * AXI4 lite interconnect
  * data and address width are taken from s_axil[0]
+ * M_IF_ADDR_WIDTH limits the address bits per master, upper bits driven zero
  */
 module axil_interconnect #(
     // number of AXI inputs (slave interfaces)
@@ -45,6 +46,9 @@ module axil_interconnect #(
     parameter logic [63:0]      M_BASE_ADDR [M_COUNT][M_REGIONS] = '{default: '0},
     // master interface address widths, zero disables the region
     parameter int               M_ADDR_WIDTH[M_COUNT][M_REGIONS] = '{default: 24},
+    // address bits forwarded to master interface, upper bits driven zero
+    // >= address width forwards the full address
+    parameter int               M_IF_ADDR_WIDTH[M_COUNT]         = '{default: 64},
     // read connections, one bit per slave interface
     parameter bit [S_COUNT-1:0] M_CONNECT_READ [M_COUNT]         = '{default: '1},
     // write connections, one bit per slave interface
@@ -89,6 +93,28 @@ end
 for (genvar n = 0; n < M_COUNT; n++) begin : g_m_width_check
     if (m_axil[n].DATA_WIDTH != DATA_WIDTH || m_axil[n].ADDR_WIDTH != ADDR_WIDTH) begin : g_err
         $error("axil_interconnect: m_axil[%0d] width differs from s_axil[0]", n);
+    end
+end
+
+// regions must fit into M_IF_ADDR_WIDTH
+function automatic bit [M_COUNT-1:0] calc_regions_fit();
+    bit [M_COUNT-1:0] fit = '1;
+    for (int mi = 0; mi < M_COUNT; mi++) begin
+        for (int ri = 0; ri < M_REGIONS; ri++) begin
+            if (M_ADDR_WIDTH[mi][ri] > M_IF_ADDR_WIDTH[mi]) begin
+                fit[mi] = 1'b0;
+            end
+        end
+    end
+    return fit;
+endfunction
+
+localparam bit [M_COUNT-1:0] M_REGIONS_FIT = calc_regions_fit();
+
+for (genvar n = 0; n < M_COUNT; n++) begin : g_region_width_check
+    if (!M_REGIONS_FIT[n]) begin : g_err
+        $error("axil_interconnect: m_axil[%0d] region width > M_IF_ADDR_WIDTH (%0d)",
+            n, M_IF_ADDR_WIDTH[n]);
     end
 end
 
@@ -147,6 +173,17 @@ endfunction
 localparam region_addr_t M_BASE_ADDR_INT = calc_base_addrs();
 localparam region_addr_t M_MASK_INT      = calc_masks();
 
+// address bits forwarded per master
+function automatic addr_t [M_COUNT-1:0] calc_if_masks();
+    addr_t [M_COUNT-1:0] masks;
+    for (int mi = 0; mi < M_COUNT; mi++) begin
+        masks[mi] = M_IF_ADDR_WIDTH[mi] < ADDR_WIDTH ? width_mask(M_IF_ADDR_WIDTH[mi]) : '1;
+    end
+    return masks;
+endfunction
+
+localparam addr_t [M_COUNT-1:0] M_IF_MASK = calc_if_masks();
+
 // region helpers for config check, k = mi * M_REGIONS + ri
 function automatic int region_width(int k);
     return M_ADDR_WIDTH[k / M_REGIONS][k % M_REGIONS];
@@ -158,6 +195,10 @@ endfunction
 
 function automatic addr_t region_mask(int k);
     return M_MASK_INT[k / M_REGIONS][k % M_REGIONS];
+endfunction
+
+function automatic addr_t region_if_mask(int k);
+    return M_IF_MASK[k / M_REGIONS];
 endfunction
 
 task automatic print_region(int k);
@@ -202,6 +243,21 @@ initial begin
                 print_region(i);
                 print_region(j);
                 $fatal(1, "Error: address ranges overlap (instance %m)");
+            end
+        end
+    end
+
+    // regions of one master may alias after M_IF_ADDR_WIDTH masking
+    for (int i = 0; i < REGION_COUNT; i++) begin
+        for (int j = i+1; j < REGION_COUNT; j++) begin
+            if (i / M_REGIONS == j / M_REGIONS
+                    && region_width(i) != 0 && region_width(j) != 0
+                    && (region_base(i) & ~region_mask(i) & region_if_mask(i)) <= ((region_base(j) | region_mask(j)) & region_if_mask(i))
+                    && (region_base(j) & ~region_mask(j) & region_if_mask(i)) <= ((region_base(i) | region_mask(i)) & region_if_mask(i))) begin
+                $display("Regions alias after M_IF_ADDR_WIDTH masking:");
+                print_region(i);
+                print_region(j);
+                $warning("Warning: address ranges alias at m_axil (instance %m)");
             end
         end
     end
@@ -286,14 +342,14 @@ for (genvar n = 0; n < S_COUNT; n++) begin : g_s_axil
 end
 
 for (genvar n = 0; n < M_COUNT; n++) begin : g_m_axil
-    assign m_axil[n].awaddr  = axil_addr_reg;
+    assign m_axil[n].awaddr  = axil_addr_reg & M_IF_MASK[n];
     assign m_axil[n].awprot  = axil_prot_reg;
     assign m_axil[n].awvalid = m_axil_awvalid_reg[n];
     assign m_axil[n].wdata   = axil_data_reg;
     assign m_axil[n].wstrb   = axil_wstrb_reg;
     assign m_axil[n].wvalid  = m_axil_wvalid_reg[n];
     assign m_axil[n].bready  = m_axil_bready_reg[n];
-    assign m_axil[n].araddr  = axil_addr_reg;
+    assign m_axil[n].araddr  = axil_addr_reg & M_IF_MASK[n];
     assign m_axil[n].arprot  = axil_prot_reg;
     assign m_axil[n].arvalid = m_axil_arvalid_reg[n];
     assign m_axil[n].rready  = m_axil_rready_reg[n];
