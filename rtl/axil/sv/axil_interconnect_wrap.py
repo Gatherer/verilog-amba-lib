@@ -73,6 +73,7 @@ THE SOFTWARE.
 /*
  * AXI4 lite {{m}}x{{n}} interconnect (wrapper)
  * flat ports, maps to axil_if interfaces
+ * Mxx_IF_ADDR_WIDTH: address width of master port xx, upper bits dropped
  */
 module {{name}} #(
     parameter  int DATA_WIDTH = 32,
@@ -84,6 +85,7 @@ module {{name}} #(
 {%- for p in range(n) %}
     parameter logic [M_REGIONS-1:0][63:0] M{{'%02d'%p}}_BASE_ADDR     = '0,
     parameter logic [M_REGIONS-1:0][31:0] M{{'%02d'%p}}_ADDR_WIDTH    = {M_REGIONS{32'd24}},
+    parameter int                         M{{'%02d'%p}}_IF_ADDR_WIDTH = ADDR_WIDTH,
     parameter bit   [S_COUNT-1:0]         M{{'%02d'%p}}_CONNECT_READ  = '1,
     parameter bit   [S_COUNT-1:0]         M{{'%02d'%p}}_CONNECT_WRITE = '1,
     parameter bit                         M{{'%02d'%p}}_SECURE        = 1'b0{% if not loop.last %},{% endif %}
@@ -120,7 +122,7 @@ module {{name}} #(
      * AXI lite master interfaces
      */
 {%- for p in range(n) %}
-    output wire [ADDR_WIDTH-1:0]    m{{'%02d'%p}}_axil_awaddr,
+    output wire [M{{'%02d'%p}}_IF_ADDR_WIDTH-1:0] m{{'%02d'%p}}_axil_awaddr,
     output wire [2:0]               m{{'%02d'%p}}_axil_awprot,
     output wire                     m{{'%02d'%p}}_axil_awvalid,
     input  wire                     m{{'%02d'%p}}_axil_awready,
@@ -131,7 +133,7 @@ module {{name}} #(
     input  wire [1:0]               m{{'%02d'%p}}_axil_bresp,
     input  wire                     m{{'%02d'%p}}_axil_bvalid,
     output wire                     m{{'%02d'%p}}_axil_bready,
-    output wire [ADDR_WIDTH-1:0]    m{{'%02d'%p}}_axil_araddr,
+    output wire [M{{'%02d'%p}}_IF_ADDR_WIDTH-1:0] m{{'%02d'%p}}_axil_araddr,
     output wire [2:0]               m{{'%02d'%p}}_axil_arprot,
     output wire                     m{{'%02d'%p}}_axil_arvalid,
     input  wire                     m{{'%02d'%p}}_axil_arready,
@@ -165,6 +167,17 @@ localparam bit [S_COUNT-1:0] M_CONNECT_WRITE [M_COUNT] = '{
 
 localparam bit [M_COUNT-1:0] M_SECURE = { {% for p in range(n-1,-1,-1) %}M{{'%02d'%p}}_SECURE{% if not loop.last %}, {% endif %}{% endfor %} };
 
+localparam int M_IF_ADDR_WIDTH [M_COUNT] = '{
+    {% for p in range(n) %}M{{'%02d'%p}}_IF_ADDR_WIDTH{% if not loop.last %}, {% endif %}{% endfor %}
+};
+
+// port address width must fit into ADDR_WIDTH
+{%- for p in range(n) %}
+if (M{{'%02d'%p}}_IF_ADDR_WIDTH > ADDR_WIDTH) begin : g_m{{'%02d'%p}}_if_check
+    $error("{{name}}: M{{'%02d'%p}}_IF_ADDR_WIDTH (%0d) > ADDR_WIDTH (%0d)", M{{'%02d'%p}}_IF_ADDR_WIDTH, ADDR_WIDTH);
+end
+{%- endfor %}
+
 axil_if #(.DATA_WIDTH(DATA_WIDTH), .ADDR_WIDTH(ADDR_WIDTH)) s_axil [S_COUNT] ();
 axil_if #(.DATA_WIDTH(DATA_WIDTH), .ADDR_WIDTH(ADDR_WIDTH)) m_axil [M_COUNT] ();
 {% for p in range(m) %}
@@ -192,14 +205,17 @@ assign s{{'%02d'%p}}_axil_rvalid  = s_axil[{{p}}].rvalid;
 {% endfor %}
 {%- for p in range(n) %}
 // master interface {{p}}
-assign m{{'%02d'%p}}_axil_awaddr  = m_axil[{{p}}].awaddr;
+// upper address bits are zero, see M_IF_ADDR_WIDTH
+/* verilator lint_off UNUSEDSIGNAL */
+assign m{{'%02d'%p}}_axil_awaddr  = m_axil[{{p}}].awaddr[M{{'%02d'%p}}_IF_ADDR_WIDTH-1:0];
 assign m{{'%02d'%p}}_axil_awprot  = m_axil[{{p}}].awprot;
 assign m{{'%02d'%p}}_axil_awvalid = m_axil[{{p}}].awvalid;
 assign m{{'%02d'%p}}_axil_wdata   = m_axil[{{p}}].wdata;
 assign m{{'%02d'%p}}_axil_wstrb   = m_axil[{{p}}].wstrb;
 assign m{{'%02d'%p}}_axil_wvalid  = m_axil[{{p}}].wvalid;
 assign m{{'%02d'%p}}_axil_bready  = m_axil[{{p}}].bready;
-assign m{{'%02d'%p}}_axil_araddr  = m_axil[{{p}}].araddr;
+assign m{{'%02d'%p}}_axil_araddr  = m_axil[{{p}}].araddr[M{{'%02d'%p}}_IF_ADDR_WIDTH-1:0];
+/* verilator lint_on UNUSEDSIGNAL */
 assign m{{'%02d'%p}}_axil_arprot  = m_axil[{{p}}].arprot;
 assign m{{'%02d'%p}}_axil_arvalid = m_axil[{{p}}].arvalid;
 assign m{{'%02d'%p}}_axil_rready  = m_axil[{{p}}].rready;
@@ -219,6 +235,7 @@ axil_interconnect #(
     .M_REGIONS(M_REGIONS),
     .M_BASE_ADDR(M_BASE_ADDR),
     .M_ADDR_WIDTH(M_ADDR_WIDTH),
+    .M_IF_ADDR_WIDTH(M_IF_ADDR_WIDTH),
     .M_CONNECT_READ(M_CONNECT_READ),
     .M_CONNECT_WRITE(M_CONNECT_WRITE),
     .M_SECURE(M_SECURE)

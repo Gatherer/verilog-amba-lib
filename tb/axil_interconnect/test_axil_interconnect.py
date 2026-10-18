@@ -271,6 +271,42 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     await RisingEdge(dut.clk)
 
 
+async def run_test_addr_width(dut):
+
+    tb = TB(dut)
+
+    m_count = len(tb.axil_ram)
+    addr_width = int(os.environ["PARAM_ADDR_WIDTH"])
+    if_addr_width = [int(os.environ.get(f"PARAM_M{k:02d}_IF_ADDR_WIDTH", addr_width)) for k in range(m_count)]
+
+    # port widths
+    for k in range(m_count):
+        for ch in ["aw", "ar"]:
+            assert len(getattr(dut, f"m{k:02d}_axil_{ch}addr")) == if_addr_width[k]
+
+    # sv only: upper address bits are zero at the full width m_axil interfaces
+    if not hasattr(dut, "m_axil"):
+        return
+
+    byte_lanes = tb.axil_master[0].write_if.byte_lanes
+
+    await tb.cycle_reset()
+
+    for m in range(m_count):
+        addr = 0x1000 + m*0x1000000
+
+        await tb.axil_master[0].write(addr, bytearray(byte_lanes))
+        for k in range(m_count):
+            assert int(dut.m_axil[k].awaddr.value) == addr & (2**if_addr_width[k]-1)
+
+        await tb.axil_master[0].read(addr, byte_lanes)
+        for k in range(m_count):
+            assert int(dut.m_axil[k].araddr.value) == addr & (2**if_addr_width[k]-1)
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
@@ -301,6 +337,8 @@ if getattr(cocotb, "SIM_NAME", None):
         ("m", range(min(m_count, 2))),
     )(run_test_prot))
 
+    run_test_addr_width = cocotb.test(run_test_addr_width)
+
     # no pauses and full pauses only, keeps runtime low
     run_stress_test = cocotb.test(cocotb.parametrize(
         (("idle_inserter", "backpressure_inserter"), [(None, None), (cycle_pause, cycle_pause)]),
@@ -326,14 +364,9 @@ hdl_variants = {
 }
 
 
-@pytest.mark.parametrize("data_width", [8, 16, 32])
-@pytest.mark.parametrize("m_count", [1, 4])
-@pytest.mark.parametrize("s_count", [1, 4])
-@pytest.mark.parametrize("hdl", list(hdl_variants))
-def test_axil_interconnect(request, hdl, s_count, m_count, data_width):
+def build(request, hdl, s_count, m_count, data_width, extra_params=None):
     dut = "axil_interconnect"
     wrapper = f"{dut}_wrap_{s_count}x{m_count}"
-    module = os.path.splitext(os.path.basename(__file__))[0]
     toplevel = wrapper
 
     # generate wrapper
@@ -362,8 +395,7 @@ def test_axil_interconnect(request, hdl, s_count, m_count, data_width):
     if hdl == "v":
         parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
         parameters['M_REGIONS'] = 1
-
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    parameters.update(extra_params or {})
 
     sim_build = os.path.join(results_dir,
         request.node.name.replace('[', '-').replace(']', ''))
@@ -379,6 +411,16 @@ def test_axil_interconnect(request, hdl, s_count, m_count, data_width):
         timescale=("1ns", "1ps"),
     )
 
+    return runner, toplevel, sim_build, parameters
+
+
+def run(request, hdl, s_count, m_count, data_width, extra_params=None):
+    module = os.path.splitext(os.path.basename(__file__))[0]
+
+    runner, toplevel, sim_build, parameters = build(request, hdl, s_count, m_count, data_width, extra_params)
+
+    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+
     runner.test(
         test_module=module,
         hdl_toplevel=toplevel,
@@ -387,3 +429,32 @@ def test_axil_interconnect(request, hdl, s_count, m_count, data_width):
         results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )
+
+
+# sv only: master port address width per port, 16 bit regions at m*0x1000000
+def narrow_params(if_addr_widths):
+    params = {}
+    for k, width in enumerate(if_addr_widths):
+        params[f'M{k:02d}_BASE_ADDR'] = f"64'h{k*0x1000000:x}"
+        params[f'M{k:02d}_ADDR_WIDTH'] = 16
+        params[f'M{k:02d}_IF_ADDR_WIDTH'] = width
+    return params
+
+
+@pytest.mark.parametrize("data_width", [8, 16, 32])
+@pytest.mark.parametrize("m_count", [1, 4])
+@pytest.mark.parametrize("s_count", [1, 4])
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axil_interconnect(request, hdl, s_count, m_count, data_width):
+    run(request, hdl, s_count, m_count, data_width)
+
+
+@pytest.mark.parametrize("s_count", [1, 4])
+def test_axil_interconnect_narrow(request, s_count):
+    run(request, "sv", s_count, 4, 32, narrow_params([16, 20, 24, 32]))
+
+
+def test_axil_interconnect_narrow_error(request):
+    # region width 16 > port address width 12 must fail
+    with pytest.raises(RuntimeError):
+        build(request, "sv", 1, 4, 32, narrow_params([16, 12, 16, 16]))
