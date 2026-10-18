@@ -38,7 +38,7 @@ from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge, Timer
 from cocotb_tools.runner import get_runner
 
-from cocotbext.axi import AxiLiteBus, AxiLiteMaster, AxiLiteRam
+from cocotbext.axi import AxiLiteBus, AxiLiteMaster, AxiLiteRam, AxiProt, AxiResp
 
 
 class TB(object):
@@ -108,7 +108,9 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
 
             tb.axil_ram[m].write(ram_addr-128, b'\xaa'*(length+256))
 
-            await tb.axil_master[s].write(addr, test_data)
+            resp = await tb.axil_master[s].write(addr, test_data)
+
+            assert resp.resp == AxiResp.OKAY
 
             tb.log.debug("%s", tb.axil_ram[m].hexdump_str((ram_addr & ~0xf)-16, (((ram_addr & 0xf)+length-1) & ~0xf)+48))
 
@@ -143,9 +145,83 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
             data = await tb.axil_master[s].read(addr, length)
 
             assert data.data == test_data
+            assert data.resp == AxiResp.OKAY
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+
+
+async def run_test_decode_error(dut, idle_inserter=None, backpressure_inserter=None, s=0):
+
+    tb = TB(dut)
+
+    byte_lanes = tb.axil_master[s].write_if.byte_lanes
+    m_count = len(tb.axil_ram)
+
+    await tb.cycle_reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    # first address behind the last master region
+    bad_addr = m_count*0x1000000
+
+    for k in range(4):
+        tb.log.info("decode error %d", k)
+
+        test_data = bytearray([0x55]*byte_lanes)
+
+        resp = await tb.axil_master[s].write(bad_addr + k*byte_lanes, test_data)
+        assert resp.resp == AxiResp.DECERR
+
+        data = await tb.axil_master[s].read(bad_addr + k*byte_lanes, byte_lanes)
+        assert data.resp == AxiResp.DECERR
+        assert data.data == bytearray(byte_lanes)
+
+        # interconnect must recover for a valid access
+        resp = await tb.axil_master[s].write(0x1000, test_data)
+        assert resp.resp == AxiResp.OKAY
+        data = await tb.axil_master[s].read(0x1000, byte_lanes)
+        assert data.resp == AxiResp.OKAY
+        assert data.data == test_data
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
+async def run_test_prot(dut, s=0, m=0):
+
+    tb = TB(dut)
+
+    byte_lanes = tb.axil_master[s].write_if.byte_lanes
+
+    await tb.cycle_reset()
+
+    seen = {"aw": [], "ar": []}
+
+    async def monitor(ch):
+        valid = getattr(dut, f"m{m:02d}_axil_{ch}valid")
+        ready = getattr(dut, f"m{m:02d}_axil_{ch}ready")
+        prot = getattr(dut, f"m{m:02d}_axil_{ch}prot")
+        while True:
+            await RisingEdge(dut.clk)
+            if valid.value and ready.value:
+                seen[ch].append(int(prot.value))
+
+    cocotb.start_soon(monitor("aw"))
+    cocotb.start_soon(monitor("ar"))
+
+    addr = 0x1000 + m*0x1000000
+
+    for prot in range(8):
+        tb.log.info("prot %d", prot)
+        await tb.axil_master[s].write(addr, bytearray(byte_lanes), prot=AxiProt(prot))
+        await tb.axil_master[s].read(addr, byte_lanes, prot=AxiProt(prot))
+
+    await RisingEdge(dut.clk)
+
+    assert seen["aw"] == list(range(8))
+    assert seen["ar"] == list(range(8))
 
 
 async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
@@ -166,12 +242,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
             await Timer(random.randint(1, 100), unit='ns')
 
-            await master.write(addr, test_data)
+            resp = await master.write(addr, test_data)
+            assert resp.resp == AxiResp.OKAY
 
             await Timer(random.randint(1, 100), unit='ns')
 
             data = await master.read(addr, length)
             assert data.data == test_data
+            assert data.resp == AxiResp.OKAY
 
     workers = []
 
@@ -204,7 +282,21 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_write = cocotb.test(test_params(run_test_write))
     run_test_read = cocotb.test(test_params(run_test_read))
 
-    run_stress_test = cocotb.test(run_stress_test)
+    run_test_decode_error = cocotb.test(cocotb.parametrize(
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause]),
+        ("s", range(min(s_count, 2))),
+    )(run_test_decode_error))
+
+    run_test_prot = cocotb.test(cocotb.parametrize(
+        ("s", range(min(s_count, 2))),
+        ("m", range(min(m_count, 2))),
+    )(run_test_prot))
+
+    # no pauses and full pauses only, keeps runtime low
+    run_stress_test = cocotb.test(cocotb.parametrize(
+        (("idle_inserter", "backpressure_inserter"), [(None, None), (cycle_pause, cycle_pause)]),
+    )(run_stress_test))
 
 
 # cocotb runner

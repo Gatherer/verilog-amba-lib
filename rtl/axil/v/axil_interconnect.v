@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2018 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +23,7 @@ THE SOFTWARE.
 
 */
 
-// Language: Verilog 2001
+// Language: Verilog 2005
 
 `resetall
 `timescale 1ns / 1ps
@@ -113,8 +114,11 @@ module axil_interconnect #
     output wire [M_COUNT-1:0]             m_axil_rready
 );
 
-parameter CL_S_COUNT = $clog2(S_COUNT);
-parameter CL_M_COUNT = $clog2(M_COUNT);
+localparam CL_S_COUNT = $clog2(S_COUNT);
+localparam CL_M_COUNT = $clog2(M_COUNT);
+// select widths, at least 1 bit
+localparam S_SEL_W = CL_S_COUNT > 0 ? CL_S_COUNT : 1;
+localparam M_SEL_W = CL_M_COUNT > 0 ? CL_M_COUNT : 1;
 
 // default address computation
 function [M_COUNT*M_REGIONS*ADDR_WIDTH-1:0] calcBaseAddrs(input [31:0] dummy);
@@ -141,14 +145,16 @@ function [M_COUNT*M_REGIONS*ADDR_WIDTH-1:0] calcBaseAddrs(input [31:0] dummy);
     end
 endfunction
 
-parameter M_BASE_ADDR_INT = M_BASE_ADDR ? M_BASE_ADDR : calcBaseAddrs(0);
+localparam M_BASE_ADDR_INT = M_BASE_ADDR ? M_BASE_ADDR : calcBaseAddrs(0);
 
+// loop variables; config check (i, j) and decode logic (mi, ri)
 integer i, j;
+integer mi, ri;
 
 // check configuration
 initial begin
     for (i = 0; i < M_COUNT*M_REGIONS; i = i + 1) begin
-        if (M_ADDR_WIDTH[i*32 +: 32] && (M_ADDR_WIDTH[i*32 +: 32] < $clog2(STRB_WIDTH) || M_ADDR_WIDTH[i*32 +: 32] > ADDR_WIDTH)) begin
+        if (M_ADDR_WIDTH[i*32 +: 32] != 0 && (M_ADDR_WIDTH[i*32 +: 32] < $clog2(STRB_WIDTH) || M_ADDR_WIDTH[i*32 +: 32] > ADDR_WIDTH)) begin
             $error("Error: address width out of range (instance %m)");
             $finish;
         end
@@ -156,7 +162,7 @@ initial begin
 
     $display("Addressing configuration for axil_interconnect instance %m");
     for (i = 0; i < M_COUNT*M_REGIONS; i = i + 1) begin
-        if (M_ADDR_WIDTH[i*32 +: 32]) begin
+        if (M_ADDR_WIDTH[i*32 +: 32] != 0) begin
             $display("%2d (%2d): %x / %02d -- %x-%x",
                 i/M_REGIONS, i%M_REGIONS,
                 M_BASE_ADDR_INT[i*ADDR_WIDTH +: ADDR_WIDTH],
@@ -184,7 +190,7 @@ initial begin
 
     for (i = 0; i < M_COUNT*M_REGIONS; i = i + 1) begin
         for (j = i+1; j < M_COUNT*M_REGIONS; j = j + 1) begin
-            if (M_ADDR_WIDTH[i*32 +: 32] && M_ADDR_WIDTH[j*32 +: 32]) begin
+            if (M_ADDR_WIDTH[i*32 +: 32] != 0 && M_ADDR_WIDTH[j*32 +: 32] != 0) begin
                 if (((M_BASE_ADDR_INT[i*ADDR_WIDTH +: ADDR_WIDTH] & ({ADDR_WIDTH{1'b1}} << M_ADDR_WIDTH[i*32 +: 32])) <= (M_BASE_ADDR_INT[j*ADDR_WIDTH +: ADDR_WIDTH] | ({ADDR_WIDTH{1'b1}} >> (ADDR_WIDTH - M_ADDR_WIDTH[j*32 +: 32]))))
                         && ((M_BASE_ADDR_INT[j*ADDR_WIDTH +: ADDR_WIDTH] & ({ADDR_WIDTH{1'b1}} << M_ADDR_WIDTH[j*32 +: 32])) <= (M_BASE_ADDR_INT[i*ADDR_WIDTH +: ADDR_WIDTH] | ({ADDR_WIDTH{1'b1}} >> (ADDR_WIDTH - M_ADDR_WIDTH[i*32 +: 32]))))) begin
                     $display("Overlapping regions:");
@@ -223,7 +229,7 @@ reg [2:0] state_reg = STATE_IDLE, state_next;
 
 reg match;
 
-reg [CL_M_COUNT-1:0] m_select_reg = 2'd0, m_select_next;
+reg [M_SEL_W-1:0] m_select_reg = {M_SEL_W{1'b0}}, m_select_next;
 reg [ADDR_WIDTH-1:0] axil_addr_reg = {ADDR_WIDTH{1'b0}}, axil_addr_next;
 reg axil_addr_valid_reg = 1'b0, axil_addr_valid_next;
 reg [2:0] axil_prot_reg = 3'b000, axil_prot_next;
@@ -265,44 +271,21 @@ assign m_axil_arvalid = m_axil_arvalid_reg;
 assign m_axil_rready = m_axil_rready_reg;
 
 // slave side mux
-wire [(CL_S_COUNT > 0 ? CL_S_COUNT-1 : 0):0] s_select;
+wire [S_SEL_W-1:0] s_select;
 
 wire [ADDR_WIDTH-1:0] current_s_axil_awaddr  = s_axil_awaddr[s_select*ADDR_WIDTH +: ADDR_WIDTH];
 wire [2:0]            current_s_axil_awprot  = s_axil_awprot[s_select*3 +: 3];
-wire                  current_s_axil_awvalid = s_axil_awvalid[s_select];
-wire                  current_s_axil_awready = s_axil_awready[s_select];
 wire [DATA_WIDTH-1:0] current_s_axil_wdata   = s_axil_wdata[s_select*DATA_WIDTH +: DATA_WIDTH];
 wire [STRB_WIDTH-1:0] current_s_axil_wstrb   = s_axil_wstrb[s_select*STRB_WIDTH +: STRB_WIDTH];
 wire                  current_s_axil_wvalid  = s_axil_wvalid[s_select];
 wire                  current_s_axil_wready  = s_axil_wready[s_select];
-wire [1:0]            current_s_axil_bresp   = s_axil_bresp[s_select*2 +: 2];
-wire                  current_s_axil_bvalid  = s_axil_bvalid[s_select];
-wire                  current_s_axil_bready  = s_axil_bready[s_select];
 wire [ADDR_WIDTH-1:0] current_s_axil_araddr  = s_axil_araddr[s_select*ADDR_WIDTH +: ADDR_WIDTH];
 wire [2:0]            current_s_axil_arprot  = s_axil_arprot[s_select*3 +: 3];
-wire                  current_s_axil_arvalid = s_axil_arvalid[s_select];
-wire                  current_s_axil_arready = s_axil_arready[s_select];
-wire [DATA_WIDTH-1:0] current_s_axil_rdata   = s_axil_rdata[s_select*DATA_WIDTH +: DATA_WIDTH];
-wire [1:0]            current_s_axil_rresp   = s_axil_rresp[s_select*2 +: 2];
-wire                  current_s_axil_rvalid  = s_axil_rvalid[s_select];
-wire                  current_s_axil_rready  = s_axil_rready[s_select];
 
 // master side mux
-wire [ADDR_WIDTH-1:0] current_m_axil_awaddr  = m_axil_awaddr[m_select_reg*ADDR_WIDTH +: ADDR_WIDTH];
-wire [2:0]            current_m_axil_awprot  = m_axil_awprot[m_select_reg*3 +: 3];
-wire                  current_m_axil_awvalid = m_axil_awvalid[m_select_reg];
-wire                  current_m_axil_awready = m_axil_awready[m_select_reg];
-wire [DATA_WIDTH-1:0] current_m_axil_wdata   = m_axil_wdata[m_select_reg*DATA_WIDTH +: DATA_WIDTH];
-wire [STRB_WIDTH-1:0] current_m_axil_wstrb   = m_axil_wstrb[m_select_reg*STRB_WIDTH +: STRB_WIDTH];
-wire                  current_m_axil_wvalid  = m_axil_wvalid[m_select_reg];
-wire                  current_m_axil_wready  = m_axil_wready[m_select_reg];
 wire [1:0]            current_m_axil_bresp   = m_axil_bresp[m_select_reg*2 +: 2];
 wire                  current_m_axil_bvalid  = m_axil_bvalid[m_select_reg];
 wire                  current_m_axil_bready  = m_axil_bready[m_select_reg];
-wire [ADDR_WIDTH-1:0] current_m_axil_araddr  = m_axil_araddr[m_select_reg*ADDR_WIDTH +: ADDR_WIDTH];
-wire [2:0]            current_m_axil_arprot  = m_axil_arprot[m_select_reg*3 +: 3];
-wire                  current_m_axil_arvalid = m_axil_arvalid[m_select_reg];
-wire                  current_m_axil_arready = m_axil_arready[m_select_reg];
 wire [DATA_WIDTH-1:0] current_m_axil_rdata   = m_axil_rdata[m_select_reg*DATA_WIDTH +: DATA_WIDTH];
 wire [1:0]            current_m_axil_rresp   = m_axil_rresp[m_select_reg*2 +: 2];
 wire                  current_m_axil_rvalid  = m_axil_rvalid[m_select_reg];
@@ -315,8 +298,11 @@ wire [S_COUNT*2-1:0] grant;
 wire grant_valid;
 wire [CL_S_COUNT:0] grant_encoded;
 
+// grant_encoded = {slave index, read}
+wire [CL_S_COUNT:0] grant_s_index = grant_encoded >> 1;
+
 wire read = grant_encoded[0];
-assign s_select = grant_encoded >> 1;
+assign s_select = grant_s_index[S_SEL_W-1:0];
 
 arbiter #(
     .PORTS(S_COUNT*2),
@@ -324,8 +310,7 @@ arbiter #(
     .ARB_BLOCK(1),
     .ARB_BLOCK_ACK(1),
     .ARB_LSB_HIGH_PRIORITY(1)
-)
-arb_inst (
+) arb_inst (
     .clk(clk),
     .rst(rst),
     .request(request),
@@ -406,11 +391,14 @@ always @* begin
         STATE_DECODE: begin
             // decode state; determine master interface
 
-            match = 1'b0;
-            for (i = 0; i < M_COUNT; i = i + 1) begin
-                for (j = 0; j < M_REGIONS; j = j + 1) begin
-                    if (M_ADDR_WIDTH[(i*M_REGIONS+j)*32 +: 32] && (!M_SECURE[i] || !axil_prot_reg[1]) && ((read ? M_CONNECT_READ : M_CONNECT_WRITE) & (1 << (s_select+i*S_COUNT))) && (axil_addr_reg >> M_ADDR_WIDTH[(i*M_REGIONS+j)*32 +: 32]) == (M_BASE_ADDR_INT[(i*M_REGIONS+j)*ADDR_WIDTH +: ADDR_WIDTH] >> M_ADDR_WIDTH[(i*M_REGIONS+j)*32 +: 32])) begin
-                        m_select_next = i;
+            // region enabled, secure check, connection allowed, address hit
+            for (mi = 0; mi < M_COUNT; mi = mi + 1) begin
+                for (ri = 0; ri < M_REGIONS; ri = ri + 1) begin
+                    if (M_ADDR_WIDTH[(mi*M_REGIONS+ri)*32 +: 32] != 0
+                            && (!M_SECURE[mi] || !axil_prot_reg[1])
+                            && (read ? M_CONNECT_READ[mi*S_COUNT+s_select] : M_CONNECT_WRITE[mi*S_COUNT+s_select])
+                            && (axil_addr_reg >> M_ADDR_WIDTH[(mi*M_REGIONS+ri)*32 +: 32]) == (M_BASE_ADDR_INT[(mi*M_REGIONS+ri)*ADDR_WIDTH +: ADDR_WIDTH] >> M_ADDR_WIDTH[(mi*M_REGIONS+ri)*32 +: 32])) begin
+                        m_select_next = mi[M_SEL_W-1:0];
                         match = 1'b1;
                     end
                 end
@@ -508,13 +496,16 @@ always @* begin
             end
         end
         STATE_WAIT_IDLE: begin
-            // wait for idle state; wait untl grant valid is deasserted
+            // wait for idle state; wait until grant valid is deasserted
 
-            if (!grant_valid || acknowledge) begin
+            if (!grant_valid || |acknowledge) begin
                 state_next = STATE_IDLE;
             end else begin
                 state_next = STATE_WAIT_IDLE;
             end
+        end
+        default: begin
+            state_next = STATE_IDLE;
         end
     endcase
 end
