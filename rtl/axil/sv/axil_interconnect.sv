@@ -311,23 +311,40 @@ end
 // slave side mux
 logic [S_SEL_W-1:0] s_select;
 
-wire [ADDR_WIDTH-1:0] current_s_axil_awaddr  = s_axil_awaddr[s_select];
-wire [2:0]            current_s_axil_awprot  = s_axil_awprot[s_select];
-wire [DATA_WIDTH-1:0] current_s_axil_wdata   = s_axil_wdata[s_select];
-wire [STRB_WIDTH-1:0] current_s_axil_wstrb   = s_axil_wstrb[s_select];
-wire                  current_s_axil_wvalid  = s_axil_wvalid[s_select];
-wire                  current_s_axil_wready  = s_axil_wready_reg[s_select];
-wire [ADDR_WIDTH-1:0] current_s_axil_araddr  = s_axil_araddr[s_select];
-wire [2:0]            current_s_axil_arprot  = s_axil_arprot[s_select];
+logic [ADDR_WIDTH-1:0] current_s_axil_awaddr;
+logic [2:0]            current_s_axil_awprot;
+logic [DATA_WIDTH-1:0] current_s_axil_wdata;
+logic [STRB_WIDTH-1:0] current_s_axil_wstrb;
+logic                  current_s_axil_wvalid;
+logic                  current_s_axil_wready;
+logic [ADDR_WIDTH-1:0] current_s_axil_araddr;
+logic [2:0]            current_s_axil_arprot;
+
+assign current_s_axil_awaddr = s_axil_awaddr[s_select];
+assign current_s_axil_awprot = s_axil_awprot[s_select];
+assign current_s_axil_wdata  = s_axil_wdata[s_select];
+assign current_s_axil_wstrb  = s_axil_wstrb[s_select];
+assign current_s_axil_wvalid = s_axil_wvalid[s_select];
+assign current_s_axil_wready = s_axil_wready_reg[s_select];
+assign current_s_axil_araddr = s_axil_araddr[s_select];
+assign current_s_axil_arprot = s_axil_arprot[s_select];
 
 // master side mux
-wire [1:0]            current_m_axil_bresp   = m_axil_bresp[m_select_reg];
-wire                  current_m_axil_bvalid  = m_axil_bvalid[m_select_reg];
-wire                  current_m_axil_bready  = m_axil_bready_reg[m_select_reg];
-wire [DATA_WIDTH-1:0] current_m_axil_rdata   = m_axil_rdata[m_select_reg];
-wire [1:0]            current_m_axil_rresp   = m_axil_rresp[m_select_reg];
-wire                  current_m_axil_rvalid  = m_axil_rvalid[m_select_reg];
-wire                  current_m_axil_rready  = m_axil_rready_reg[m_select_reg];
+logic [1:0]            current_m_axil_bresp;
+logic                  current_m_axil_bvalid;
+logic                  current_m_axil_bready;
+logic [DATA_WIDTH-1:0] current_m_axil_rdata;
+logic [1:0]            current_m_axil_rresp;
+logic                  current_m_axil_rvalid;
+logic                  current_m_axil_rready;
+
+assign current_m_axil_bresp  = m_axil_bresp[m_select_reg];
+assign current_m_axil_bvalid = m_axil_bvalid[m_select_reg];
+assign current_m_axil_bready = m_axil_bready_reg[m_select_reg];
+assign current_m_axil_rdata  = m_axil_rdata[m_select_reg];
+assign current_m_axil_rresp  = m_axil_rresp[m_select_reg];
+assign current_m_axil_rvalid = m_axil_rvalid[m_select_reg];
+assign current_m_axil_rready = m_axil_rready_reg[m_select_reg];
 
 // arbiter instance
 logic [S_COUNT*2-1:0] request;
@@ -337,7 +354,9 @@ logic                 grant_valid;
 logic [CL_S_COUNT:0]  grant_encoded;
 
 // grant_encoded = {slave index, read}
-wire read = grant_encoded[0];
+logic                  read;
+
+assign read = grant_encoded[0];
 
 if (S_COUNT > 1) begin : g_s_select
     assign s_select = grant_encoded[CL_S_COUNT:1];
