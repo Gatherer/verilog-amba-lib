@@ -41,12 +41,20 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiLiteBus, AxiLiteMaster, AxiLiteRam, AxiProt, AxiResp
 
 
+def port_count(dut, prefix):
+    # count wrapper ports, works for v and sv variant
+    n = 0
+    while hasattr(dut, f"{prefix}{n:02d}_axil_awvalid"):
+        n += 1
+    return n
+
+
 class TB(object):
     def __init__(self, dut):
         self.dut = dut
 
-        s_count = len(dut.axil_interconnect_inst.s_axil_awvalid)
-        m_count = len(dut.axil_interconnect_inst.m_axil_awvalid)
+        s_count = port_count(dut, "s")
+        m_count = port_count(dut, "m")
 
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
@@ -269,8 +277,8 @@ def cycle_pause():
 
 if getattr(cocotb, "SIM_NAME", None):
 
-    s_count = len(cocotb.top.axil_interconnect_inst.s_axil_awvalid)
-    m_count = len(cocotb.top.axil_interconnect_inst.m_axil_awvalid)
+    s_count = port_count(cocotb.top, "s")
+    m_count = port_count(cocotb.top, "m")
 
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
@@ -302,8 +310,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil', 'v'))
-common_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common', 'v'))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil'))
+common_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common'))
 results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
@@ -311,37 +319,49 @@ if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
+# HDL variants: source file extension and verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNSIGNED", "-Wno-CASEINCOMPLETE", "-Wno-UNOPTFLAT", "-Wno-ASCRANGE"],
+    "sv": [],
+}
+
+
 @pytest.mark.parametrize("data_width", [8, 16, 32])
 @pytest.mark.parametrize("m_count", [1, 4])
 @pytest.mark.parametrize("s_count", [1, 4])
-def test_axil_interconnect(request, s_count, m_count, data_width):
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axil_interconnect(request, hdl, s_count, m_count, data_width):
     dut = "axil_interconnect"
     wrapper = f"{dut}_wrap_{s_count}x{m_count}"
     module = os.path.splitext(os.path.basename(__file__))[0]
     toplevel = wrapper
 
     # generate wrapper
-    wrapper_file = os.path.join(results_dir, f"{wrapper}.v")
+    wrapper_file = os.path.join(results_dir, f"{wrapper}.{hdl}")
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{s_count}", f"{m_count}"],
+            [sys.executable, os.path.join(rtl_dir, hdl, f"{dut}_wrap.py"), "-p", f"{s_count}", f"{m_count}"],
             cwd=results_dir
         ).wait()
 
-    verilog_sources = [
-        wrapper_file,
-        os.path.join(rtl_dir, f"{dut}.v"),
-        os.path.join(common_dir, "arbiter.v"),
-        os.path.join(common_dir, "priority_encoder.v"),
+    verilog_sources = [wrapper_file]
+    if hdl == "sv":
+        verilog_sources.append(os.path.join(rtl_dir, "if", "axil_if.sv"))
+    verilog_sources += [
+        os.path.join(rtl_dir, hdl, f"{dut}.{hdl}"),
+        os.path.join(common_dir, hdl, f"arbiter.{hdl}"),
+        os.path.join(common_dir, hdl, f"priority_encoder.{hdl}"),
     ]
 
     parameters = {}
 
     parameters['DATA_WIDTH'] = data_width
     parameters['ADDR_WIDTH'] = 32
-    parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
-    parameters['M_REGIONS'] = 1
+    # sv wrapper: STRB_WIDTH and M_REGIONS are localparams
+    if hdl == "v":
+        parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
+        parameters['M_REGIONS'] = 1
 
     extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
 
@@ -354,7 +374,7 @@ def test_axil_interconnect(request, s_count, m_count, data_width):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNSIGNED", "-Wno-CASEINCOMPLETE", "-Wno-UNOPTFLAT", "-Wno-ASCRANGE"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
