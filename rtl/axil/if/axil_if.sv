@@ -79,8 +79,8 @@ modport slave (
     // read address channel
     input arvalid,
     output arready,
-    output araddr,
-    output arprot,
+    input araddr,
+    input arprot,
     // read data channel
     input rready,
     output rvalid,
@@ -106,8 +106,8 @@ modport master (
     // read address channel
     output arvalid,
     input arready,
-    input araddr,
-    input arprot,
+    output araddr,
+    output arprot,
     // read data channel
     output rready,
     input rvalid,
