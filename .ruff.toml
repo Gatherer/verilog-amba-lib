@@ -21,6 +21,7 @@ select = [
     "N",                    # pep8-naming: naming conventions
     "PLE", "PLW",           # pylint: errors, warnings
     "PLR1722",              # pylint: sys.exit() instead of exit()
+    "EXE",                  # shebang only in executable scripts
 ]
 ignore = [
     "SIM108",               # ternary one-liners, if/else block is more readable

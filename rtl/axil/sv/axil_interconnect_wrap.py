@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Generates an AXI lite interconnect wrapper (SystemVerilog) with the specified number of ports
 """
