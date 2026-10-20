@@ -122,79 +122,79 @@ class TB:
         self.dut.m_axis_rst.value = Immediate(0)
         for ram in self.axi_ram:
             ram.write_if.reset.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
         self.dut.s_axis_rst.value = 1
         self.dut.m_axis_rst.value = 1
         for ram in self.axi_ram:
             ram.write_if.reset.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 0
         self.dut.s_axis_rst.value = 0
         self.dut.m_axis_rst.value = 0
         for ram in self.axi_ram:
             ram.write_if.reset.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_source(self):
         self.dut.s_axis_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_axis_clk)
         self.dut.s_axis_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_axis_clk)
         self.dut.s_axis_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_axis_clk)
 
     async def reset_sink(self):
         self.dut.m_axis_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.m_axis_clk)
         self.dut.m_axis_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.m_axis_clk)
         self.dut.m_axis_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.m_axis_clk)
 
     async def reset_axi_0(self):
         self.axi_ram[0].write_if.reset.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.axi_ram[0].write_if.reset.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.axi_ram[0].write_if.reset.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_axi(self):
         for ram in self.axi_ram:
             ram.write_if.reset.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         for ram in self.axi_ram:
             ram.write_if.reset.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         for ram in self.axi_ram:
             ram.write_if.reset.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_cfg(self):
         self.dut.cfg_reset.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.cfg_reset.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.cfg_reset.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
 
@@ -235,7 +235,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
         cur_id = (cur_id + 1) % id_count
 
         if space:
-            for k in range(1000):
+            for _ in range(1000):
                 await RisingEdge(dut.clk)
 
                 if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value) and int(dut.m_axis_tlast.value):
@@ -300,7 +300,7 @@ async def run_test_init_sink_pause(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(256):
+    for _ in range(256):
         await RisingEdge(dut.s_axis_clk)
 
     tb.sink.pause = False
@@ -334,14 +334,14 @@ async def run_test_init_sink_pause_reset(dut, reset_type=TB.reset):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(256):
+    for _ in range(256):
         await RisingEdge(dut.s_axis_clk)
 
     await reset_type(tb)
 
     tb.sink.pause = False
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.s_axis_clk)
 
     assert tb.sink.idle()
@@ -376,12 +376,12 @@ async def run_test_shift_in_reset(dut, reset_type=TB.reset):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(256):
+    for _ in range(256):
         await RisingEdge(dut.s_axis_clk)
 
     await reset_type(tb)
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.s_axis_clk)
 
     assert tb.sink.idle()
@@ -418,12 +418,12 @@ async def run_test_shift_out_reset(dut, reset_type=TB.reset):
 
     await RisingEdge(dut.m_axis_tvalid)
 
-    for k in range(8):
+    for _ in range(8):
         await RisingEdge(dut.s_axis_clk)
 
     await reset_type(tb)
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.s_axis_clk)
 
     assert tb.sink.idle()
@@ -460,7 +460,7 @@ async def run_test_overflow(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.s_axis_clk)
 
     tb.sink.pause = False
@@ -503,7 +503,7 @@ async def run_stress_test(dut, space=False,
 
     test_frames = []
 
-    for k in range(128):
+    for _ in range(128):
         length = random.randint(1, byte_lanes*16)
         test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
         test_frame = AxiStreamFrame(test_data)
@@ -516,7 +516,7 @@ async def run_stress_test(dut, space=False,
         cur_id = (cur_id + 1) % id_count
 
         if space:
-            for k in range(1000):
+            for _ in range(1000):
                 await RisingEdge(dut.clk)
 
                 if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value) and int(dut.m_axis_tlast.value):

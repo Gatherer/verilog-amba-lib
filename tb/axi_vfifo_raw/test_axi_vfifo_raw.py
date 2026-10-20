@@ -372,61 +372,61 @@ class TB:
         self.dut.rst.value = Immediate(0)
         self.dut.input_rst.value = Immediate(0)
         self.dut.output_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
         self.dut.input_rst.value = 1
         self.dut.output_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 0
         self.dut.input_rst.value = 0
         self.dut.output_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_axi(self):
         self.dut.rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_source(self):
         self.dut.input_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.input_clk)
         self.dut.input_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.input_clk)
         self.dut.input_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.input_clk)
 
     async def reset_sink(self):
         self.dut.output_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.output_clk)
         self.dut.output_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.output_clk)
         self.dut.output_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.output_clk)
 
     async def reset_cfg(self):
         self.dut.cfg_reset.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.cfg_reset.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.cfg_reset.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
 
@@ -459,7 +459,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
         await tb.source.write(test_data)
 
         if space:
-            for k in range(1000):
+            for _ in range(1000):
                 await RisingEdge(dut.clk)
 
     for test_data in test_frames:
@@ -497,7 +497,7 @@ async def run_test_init_sink_pause(dut):
 
     await tb.source.write(test_data)
 
-    for k in range(256):
+    for _ in range(256):
         await RisingEdge(dut.clk)
 
     tb.sink.pause = False
@@ -536,7 +536,7 @@ async def run_test_init_sink_pause_reset(dut, reset_type=TB.reset):
 
     await tb.source.write(test_data)
 
-    for k in range(256):
+    for _ in range(256):
         await RisingEdge(dut.clk)
 
     await reset_type(tb)
@@ -544,7 +544,7 @@ async def run_test_init_sink_pause_reset(dut, reset_type=TB.reset):
 
     tb.sink.pause = False
 
-    for k in range(1024):
+    for _ in range(1024):
         await RisingEdge(dut.clk)
 
     assert tb.sink.empty()
@@ -583,13 +583,13 @@ async def run_test_shift_in_reset(dut, reset_type=TB.reset):
 
     await tb.source.write(test_data)
 
-    for k in range(256):
+    for _ in range(256):
         await RisingEdge(dut.clk)
 
     await reset_type(tb)
     tb.sink.clear()
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.clk)
 
     assert tb.sink.empty()
@@ -631,13 +631,13 @@ async def run_test_shift_out_reset(dut, reset_type=TB.reset):
     while not dut.output_valid.value:
         await RisingEdge(dut.clk)
 
-    for k in range(8):
+    for _ in range(8):
         await RisingEdge(dut.clk)
 
     await reset_type(tb)
     tb.sink.clear()
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.clk)
 
     assert tb.sink.empty()
@@ -678,7 +678,7 @@ async def run_test_overflow(dut):
 
     await tb.source.write(test_data)
 
-    for k in range(2*2**len(dut.m_axi_awaddr)//len(dut.m_axi_wstrb)):
+    for _ in range(2*2**len(dut.m_axi_awaddr)//len(dut.m_axi_wstrb)):
         await RisingEdge(dut.clk)
 
     tb.sink.pause = False

@@ -236,24 +236,24 @@ class TB:
 
     async def reset(self):
         self.dut.rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_fifo(self):
         self.dut.fifo_rst_in.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.fifo_rst_in.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.fifo_rst_in.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
 
@@ -296,7 +296,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False, id
         cur_id = (cur_id + 1) % id_count
 
         if space:
-            for k in range(1000):
+            for _ in range(1000):
                 await RisingEdge(dut.clk)
 
     for test_frame in test_frames:
@@ -343,7 +343,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False, id
 
     # assert tb.sink.empty()
 
-    for k in range(1000):
+    for _ in range(1000):
         await RisingEdge(dut.clk)
 
     await RisingEdge(dut.clk)

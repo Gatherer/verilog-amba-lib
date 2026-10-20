@@ -71,37 +71,37 @@ class TB:
     async def reset(self):
         self.dut.m_rst.value = Immediate(0)
         self.dut.s_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_clk)
         self.dut.m_rst.value = 1
         self.dut.s_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_clk)
         self.dut.m_rst.value = 0
         self.dut.s_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_clk)
 
     async def reset_source(self):
         self.dut.s_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_clk)
         self.dut.s_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_clk)
         self.dut.s_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.s_clk)
 
     async def reset_sink(self):
         self.dut.m_rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.m_clk)
         self.dut.m_rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.m_clk)
         self.dut.m_rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.m_clk)
 
 
@@ -155,7 +155,7 @@ async def run_test_tuser_assert(dut):
     await tb.source.send(test_frame)
 
     if dut.DROP_BAD_FRAME.value:
-        for k in range(64):
+        for _ in range(64):
             await RisingEdge(dut.s_clk)
 
     else:
@@ -182,7 +182,7 @@ async def run_test_init_sink_pause(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     tb.sink.pause = False
@@ -210,14 +210,14 @@ async def run_test_init_sink_pause_reset(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     await tb.reset()
 
     tb.sink.pause = False
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     assert tb.sink.idle()
@@ -238,14 +238,14 @@ async def run_test_init_sink_pause_source_reset(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(1024):
+    for _ in range(1024):
         await RisingEdge(dut.s_clk)
 
     await tb.reset_source()
 
     tb.sink.pause = False
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     rx_frame = await tb.sink.recv()
@@ -270,14 +270,14 @@ async def run_test_init_sink_pause_sink_reset(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     await tb.reset_sink()
 
     tb.sink.pause = False
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     assert tb.sink.idle()
@@ -296,12 +296,12 @@ async def run_test_shift_in_source_reset(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(8):
+    for _ in range(8):
         await RisingEdge(dut.s_clk)
 
     await tb.reset_source()
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     if dut.FRAME_FIFO.value:
@@ -328,12 +328,12 @@ async def run_test_shift_in_sink_reset(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(8):
+    for _ in range(8):
         await RisingEdge(dut.s_clk)
 
     await tb.reset_sink()
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     assert tb.sink.idle()
@@ -354,12 +354,12 @@ async def run_test_shift_out_source_reset(dut):
 
     await RisingEdge(dut.m_axis_tvalid)
 
-    for k in range(8):
+    for _ in range(8):
         await RisingEdge(dut.s_clk)
 
     await tb.reset_source()
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     rx_frame = await tb.sink.recv()
@@ -384,12 +384,12 @@ async def run_test_shift_out_sink_reset(dut):
 
     await RisingEdge(dut.m_axis_tvalid)
 
-    for k in range(8):
+    for _ in range(8):
         await RisingEdge(dut.s_clk)
 
     await tb.reset_sink()
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     assert tb.sink.idle()
@@ -409,34 +409,34 @@ async def run_test_pause(dut):
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 16*byte_lanes))
     test_frame = AxiStreamFrame(test_data)
 
-    for k in range(16):
+    for _ in range(16):
         await tb.source.send(test_frame)
 
-    for k in range(60):
+    for _ in range(60):
         await RisingEdge(dut.s_clk)
 
     dut.m_pause_req.value = 1
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     assert tb.sink.idle()
 
     dut.m_pause_req.value = 0
 
-    for k in range(60):
+    for _ in range(60):
         await RisingEdge(dut.s_clk)
 
     dut.s_pause_req.value = 1
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.s_clk)
 
     assert tb.sink.idle()
 
     dut.s_pause_req.value = 0
 
-    for k in range(16):
+    for _ in range(16):
         rx_frame = await tb.sink.recv()
 
         assert rx_frame.tdata == test_data
@@ -464,10 +464,10 @@ async def run_test_overflow(dut):
 
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), size))
     test_frame = AxiStreamFrame(test_data)
-    for k in range(count):
+    for _ in range(count):
         await tb.source.send(test_frame)
 
-    for k in range((depth//byte_lanes)*3):
+    for _ in range((depth//byte_lanes)*3):
         await RisingEdge(dut.s_clk)
 
     if dut.DROP_WHEN_FULL.value or dut.MARK_WHEN_FULL.value:
@@ -478,7 +478,7 @@ async def run_test_overflow(dut):
     tb.sink.pause = False
 
     if dut.DROP_WHEN_FULL.value or dut.MARK_WHEN_FULL.value:
-        for k in range((depth//byte_lanes)*3):
+        for _ in range((depth//byte_lanes)*3):
             await RisingEdge(dut.s_clk)
 
         rx_count = 0
@@ -497,7 +497,7 @@ async def run_test_overflow(dut):
         assert rx_count < count
 
     else:
-        for k in range(count):
+        for _ in range(count):
             rx_frame = await tb.sink.recv()
 
             assert rx_frame.tdata == test_data
@@ -524,13 +524,13 @@ async def run_test_oversize(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range((depth//byte_lanes)*2):
+    for _ in range((depth//byte_lanes)*2):
         await RisingEdge(dut.s_clk)
 
     tb.sink.pause = False
 
     if dut.DROP_OVERSIZE_FRAME.value:
-        for k in range((depth//byte_lanes)*2):
+        for _ in range((depth//byte_lanes)*2):
             await RisingEdge(dut.s_clk)
 
     else:
@@ -564,7 +564,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     test_frames = []
 
-    for k in range(512):
+    for _ in range(512):
         length = random.randint(1, byte_lanes*16)
         test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
         test_frame = AxiStreamFrame(test_data)

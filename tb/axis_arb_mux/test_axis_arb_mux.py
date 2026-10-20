@@ -178,7 +178,7 @@ async def run_arb_test(dut):
             src_ind = 0
         elif k == 4:
             await test_frames[1].tx_complete.wait()
-            for j in range(8):
+            for _ in range(8):
                 await RisingEdge(dut.clk)
             src_ind = 0
         else:
@@ -232,7 +232,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     test_frames = [list() for x in tb.source]
 
     for p in range(len(tb.source)):
-        for k in range(128):
+        for _ in range(128):
             length = random.randint(1, byte_lanes*16)
             test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
             test_frame = AxiStreamFrame(test_data)

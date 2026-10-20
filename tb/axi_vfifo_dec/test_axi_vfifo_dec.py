@@ -201,24 +201,24 @@ class TB:
 
     async def reset(self):
         self.dut.rst.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
     async def reset_fifo(self):
         self.dut.fifo_rst_in.value = Immediate(0)
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.fifo_rst_in.value = 1
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
         self.dut.fifo_rst_in.value = 0
-        for k in range(10):
+        for _ in range(10):
             await RisingEdge(self.dut.clk)
 
 

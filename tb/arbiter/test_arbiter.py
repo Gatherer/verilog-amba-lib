@@ -103,7 +103,7 @@ class TB:
         self.dut.request.value = 0
         self.dut.acknowledge.value = 0
 
-        for k in range(4):
+        for _ in range(4):
             await RisingEdge(self.dut.clk)
         self.dut.rst.value = 0
         await FallingEdge(self.dut.clk)
@@ -141,7 +141,7 @@ async def run_test_idle(dut):
 
     await tb.init()
 
-    for k in range(8):
+    for _ in range(8):
         await tb.cycle(0)
 
 
@@ -172,7 +172,7 @@ async def run_test_all(dut):
     grants = []
     grant = 0
 
-    for k in range(3*tb.ports):
+    for _ in range(3*tb.ports):
         grant = await tb.cycle(ones & ~grant if release_request else ones, grant)
         grants.append(grant)
 
@@ -205,7 +205,7 @@ async def run_test_hold(dut):
 
     for i in range(tb.ports):
         await tb.cycle(1 << i)
-        for k in range(4):
+        for _ in range(4):
             await tb.cycle(ones)
         await tb.cycle(ones, ones)
         await tb.cycle(0, ones)
@@ -218,14 +218,14 @@ async def run_stress_test(dut):
 
     await tb.init()
 
-    for k in range(1024):
+    for _ in range(1024):
         await tb.cycle(random.getrandbits(tb.ports), random.getrandbits(tb.ports))
 
     # reset during operation
     tb.dut.rst.value = 1
     await tb.init()
 
-    for k in range(256):
+    for _ in range(256):
         await tb.cycle(random.getrandbits(tb.ports), tb.grant if random.random() < 0.5 else 0)
 
 
