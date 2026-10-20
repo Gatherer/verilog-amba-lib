@@ -37,7 +37,7 @@ from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
 from cocotb_tools.runner import get_runner
 
-from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiStreamSink
+from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 from cocotbext.axi.stream import define_stream
 
 HdrBus, HdrTransaction, HdrSource, HdrSink, HdrMonitor = define_stream("Hdr",

@@ -31,14 +31,12 @@ import sys
 import pytest
 
 import cocotb
-
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
 from cocotb_tools.runner import get_runner
 
-from cocotbext.axi import AxiBus, AxiRam
-from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiStreamSink
+from cocotbext.axi import AxiBus, AxiRam, AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 from cocotbext.axi.stream import define_stream
 
 DescBus, DescTransaction, DescSource, DescSink, DescMonitor = define_stream("Desc",

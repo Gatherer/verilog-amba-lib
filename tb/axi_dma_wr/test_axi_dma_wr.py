@@ -36,8 +36,7 @@ from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
 from cocotb_tools.runner import get_runner
 
-from cocotbext.axi import AxiWriteBus, AxiRamWrite
-from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource
+from cocotbext.axi import AxiRamWrite, AxiStreamBus, AxiStreamFrame, AxiStreamSource, AxiWriteBus
 from cocotbext.axi.stream import define_stream
 
 DescBus, DescTransaction, DescSource, DescSink, DescMonitor = define_stream("Desc",

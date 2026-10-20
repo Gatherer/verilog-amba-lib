@@ -4,6 +4,7 @@ Generates an AXI interconnect wrapper with the specified number of ports
 """
 
 import argparse
+
 from jinja2 import Template
 
 
