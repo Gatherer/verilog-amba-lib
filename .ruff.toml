@@ -10,6 +10,12 @@ extend-exclude = [
 [lint]
 # start with ruff defaults, extend group by group
 select = [
-    "E4", "E7", "E9",       # pycodestyle: imports, statements, syntax errors
+    "E", "W",               # pycodestyle: errors, warnings
     "F",                    # pyflakes: unused imports/vars, undefined names
 ]
+ignore = [
+    "E501",                 # line too long, enable after formatter decision
+]
+
+[lint.per-file-ignores]
+"rtl/**/*_wrap.py" = ["E501"]   # long lines in Verilog templates
