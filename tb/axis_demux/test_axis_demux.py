@@ -86,7 +86,6 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     id_width = len(tb.source.bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
 
     dest_width = len(tb.sink[0].bus.tid)
     dest_count = 2**dest_width

@@ -1,0 +1,15 @@
+# Ruff linter config, see https://docs.astral.sh/ruff/
+
+target-version = "py312"    # same as CI / .venv
+line-length = 120           # long signal/parameter names
+
+extend-exclude = [
+    "tb/results",           # generated sim outputs
+]
+
+[lint]
+# start with ruff defaults, extend group by group
+select = [
+    "E4", "E7", "E9",       # pycodestyle: imports, statements, syntax errors
+    "F",                    # pyflakes: unused imports/vars, undefined names
+]
