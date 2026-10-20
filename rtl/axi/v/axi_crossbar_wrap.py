@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Generates an AXI crossbar wrapper with the specified number of ports
 """

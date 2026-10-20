@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Generates an AXI Stream arbitrated mux wrapper with the specified number of ports
 """
