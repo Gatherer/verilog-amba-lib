@@ -35,7 +35,7 @@ from cocotb.triggers import Timer
 from cocotb_tools.runner import get_runner
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 

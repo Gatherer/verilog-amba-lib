@@ -106,7 +106,7 @@ def prbs31(state=0x7fffffff):
         yield state & 0xff
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 

@@ -18,7 +18,7 @@ def main():
 
     try:
         generate(**args.__dict__)
-    except IOError as ex:
+    except OSError as ex:
         print(ex)
         exit(1)
 
@@ -27,16 +27,16 @@ def generate(ports=4, name=None, output=None):
     n = ports
 
     if name is None:
-        name = "axis_broadcast_wrap_{0}".format(n)
+        name = f"axis_broadcast_wrap_{n}"
 
     if output is None:
         output = name + ".v"
 
-    print("Generating {0} port AXI stream broadcast wrapper {1}...".format(n, name))
+    print(f"Generating {n} port AXI stream broadcast wrapper {name}...")
 
     cn = (n-1).bit_length()
 
-    t = Template(u"""/*
+    t = Template("""/*
 
 Copyright (c) 2018-2021 Alex Forencich
 

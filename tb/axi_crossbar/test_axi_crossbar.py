@@ -41,7 +41,7 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiBus, AxiMaster, AxiRam
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 

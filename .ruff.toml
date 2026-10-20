@@ -13,6 +13,7 @@ select = [
     "E", "W",               # pycodestyle: errors, warnings
     "F",                    # pyflakes: unused imports/vars, undefined names
     "I",                    # isort: import order
+    "UP",                   # pyupgrade: modern Python syntax
 ]
 ignore = [
     "E501",                 # line too long, enable after formatter decision

@@ -49,7 +49,7 @@ def port_count(dut, prefix):
     return n
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 

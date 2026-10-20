@@ -209,7 +209,7 @@ class DataSink:
             await clock_edge_event
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 

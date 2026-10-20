@@ -50,7 +50,7 @@ DescStatusBus, DescStatusTransaction, DescStatusSource, DescStatusSink, DescStat
 )
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 
