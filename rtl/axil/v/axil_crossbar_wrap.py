@@ -4,6 +4,7 @@ Generates an AXI lite crossbar wrapper with the specified number of ports
 """
 
 import argparse
+import sys
 
 from jinja2 import Template
 
@@ -20,7 +21,7 @@ def main():
         generate(**args.__dict__)
     except OSError as ex:
         print(ex)
-        exit(1)
+        sys.exit(1)
 
 
 def generate(ports=4, name=None, output=None):

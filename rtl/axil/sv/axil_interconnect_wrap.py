@@ -4,6 +4,7 @@ Generates an AXI lite interconnect wrapper (SystemVerilog) with the specified nu
 """
 
 import argparse
+import sys
 
 from jinja2 import Template
 
@@ -21,7 +22,7 @@ def main():
         generate(**args.__dict__)
     except OSError as ex:
         print(ex)
-        exit(1)
+        sys.exit(1)
 
 
 def generate(ports=4, regions=1, name=None, output=None):
