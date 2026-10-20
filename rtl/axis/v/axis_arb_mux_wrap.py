@@ -4,6 +4,7 @@ Generates an AXI Stream arbitrated mux wrapper with the specified number of port
 """
 
 import argparse
+
 from jinja2 import Template
 
 

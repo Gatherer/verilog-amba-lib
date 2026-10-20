@@ -37,7 +37,7 @@ from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge, Timer
 from cocotb_tools.runner import get_runner
 
-from cocotbext.axi import AxiBus, AxiLiteBus, AxiMaster, AxiLiteRam
+from cocotbext.axi import AxiBus, AxiLiteBus, AxiLiteRam, AxiMaster
 
 
 class TB(object):

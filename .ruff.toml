@@ -12,6 +12,7 @@ extend-exclude = [
 select = [
     "E", "W",               # pycodestyle: errors, warnings
     "F",                    # pyflakes: unused imports/vars, undefined names
+    "I",                    # isort: import order
 ]
 ignore = [
     "E501",                 # line too long, enable after formatter decision
@@ -19,3 +20,16 @@ ignore = [
 
 [lint.per-file-ignores]
 "rtl/**/*_wrap.py" = ["E501"]   # long lines in Verilog templates
+
+[lint.isort]
+# import blocks: stdlib / pytest / cocotb / cocotbext / other
+section-order = [
+    "future", "standard-library",
+    "pytest", "cocotb", "cocotbext",
+    "third-party", "first-party", "local-folder",
+]
+
+[lint.isort.sections]
+pytest = ["pytest"]
+cocotb = ["cocotb", "cocotb_tools", "cocotb_bus"]
+cocotbext = ["cocotbext"]

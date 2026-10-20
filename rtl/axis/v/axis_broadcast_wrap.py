@@ -4,6 +4,7 @@ Generates an AXI Stream broadcast wrapper with the specified number of ports
 """
 
 import argparse
+
 from jinja2 import Template
 
 

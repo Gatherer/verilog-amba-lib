@@ -4,6 +4,7 @@ Generates an AXI lite interconnect wrapper (SystemVerilog) with the specified nu
 """
 
 import argparse
+
 from jinja2 import Template
 
 

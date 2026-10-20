@@ -31,13 +31,12 @@ import sys
 import pytest
 
 import cocotb
-
-from cocotb.queue import Queue
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
-from cocotb.triggers import RisingEdge, Event
-from cocotb_tools.runner import get_runner
+from cocotb.queue import Queue
+from cocotb.triggers import Event, RisingEdge
 from cocotb_bus.bus import Bus
+from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiBus, AxiRam
 
