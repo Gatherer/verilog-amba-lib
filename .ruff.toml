@@ -1,4 +1,4 @@
-# Ruff linter config, see https://docs.astral.sh/ruff/
+# Ruff linter and formatter config, see https://docs.astral.sh/ruff/
 
 target-version = "py312"    # same as CI / .venv
 line-length = 120           # long signal/parameter names
@@ -8,7 +8,6 @@ extend-exclude = [
 ]
 
 [lint]
-# start with ruff defaults, extend group by group
 select = [
     "E", "W",               # pycodestyle: errors, warnings
     "F",                    # pyflakes: unused imports/vars, undefined names
@@ -24,7 +23,6 @@ select = [
     "PLR1722",              # pylint: sys.exit() instead of exit()
 ]
 ignore = [
-    "E501",                 # line too long, enable after formatter decision
     "SIM108",               # ternary one-liners, if/else block is more readable
 ]
 
@@ -43,3 +41,6 @@ section-order = [
 pytest = ["pytest"]
 cocotb = ["cocotb", "cocotb_tools", "cocotb_bus"]
 cocotbext = ["cocotbext"]
+
+[format]
+quote-style = "double"      # ruff/black default, "..." instead of '...'

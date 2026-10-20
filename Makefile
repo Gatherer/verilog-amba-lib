@@ -4,7 +4,8 @@
 #   make venv       create/update venv from requirements.txt
 #   make test TESTS=tb/axi_ram ARGS="-k 32"   serial, live output (default)
 #   make test JOBS=auto                       parallel (regression), output only on failure
-#   make lint       run ruff linter
+#   make lint       run ruff linter, check formatting
+#   make format     format Python files with ruff
 #   make clean      remove simulation build outputs
 #   make distclean  clean + remove venv
 #
@@ -29,7 +30,7 @@ export PYTHONPYCACHEPREFIX := $(abspath tb/results/__pycache__)
 VENV_BIN   := $(VENV)/bin
 VENV_STAMP := $(VENV)/.installed
 
-.PHONY: all venv test lint check-verilator clean distclean
+.PHONY: all venv test lint format check-verilator clean distclean
 
 all: test
 
@@ -50,6 +51,10 @@ test: $(VENV_STAMP) check-verilator
 
 lint: $(VENV_STAMP)
 	$(VENV_BIN)/ruff check .
+	$(VENV_BIN)/ruff format --check .
+
+format: $(VENV_STAMP)
+	$(VENV_BIN)/ruff format .
 
 clean:
 	rm -rf tb/results

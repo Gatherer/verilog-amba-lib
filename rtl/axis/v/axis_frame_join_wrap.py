@@ -11,9 +11,9 @@ from jinja2 import Template
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.strip())
-    parser.add_argument('-p', '--ports',  type=int, default=4, help="number of ports")
-    parser.add_argument('-n', '--name',   type=str, help="module name")
-    parser.add_argument('-o', '--output', type=str, help="output file name")
+    parser.add_argument("-p", "--ports", type=int, default=4, help="number of ports")
+    parser.add_argument("-n", "--name", type=str, help="module name")
+    parser.add_argument("-o", "--output", type=str, help="output file name")
 
     args = parser.parse_args()
 
@@ -35,7 +35,7 @@ def generate(ports=4, name=None, output=None):
 
     print(f"Generating {n} port AXI stream frame joiner wrapper {name}...")
 
-    cn = (n-1).bit_length()
+    cn = (n - 1).bit_length()
 
     t = Template("""/*
 
@@ -148,12 +148,8 @@ endmodule
 
     print(f"Writing file '{output}'...")
 
-    with open(output, 'w') as f:
-        f.write(t.render(
-            n=n,
-            cn=cn,
-            name=name
-        ))
+    with open(output, "w") as f:
+        f.write(t.render(n=n, cn=cn, name=name))
         f.flush()
 
     print("Done")

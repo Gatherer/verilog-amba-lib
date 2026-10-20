@@ -79,7 +79,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     tb = TB(dut)
 
-    id_count = 2**len(tb.source.bus.tid)
+    id_count = 2 ** len(tb.source.bus.tid)
 
     cur_id = 1
 
@@ -204,7 +204,7 @@ async def run_test_pause(dut):
 
     await tb.reset()
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 16*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 16 * byte_lanes))
     test_frame = AxiStreamFrame(test_data)
 
     for _ in range(16):
@@ -245,15 +245,15 @@ async def run_test_overflow(dut):
 
     tb.sink.pause = True
 
-    size = (16*byte_lanes)
-    count = depth*2 // size
+    size = 16 * byte_lanes
+    count = depth * 2 // size
 
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), size))
     test_frame = AxiStreamFrame(test_data)
     for _ in range(count):
         await tb.source.send(test_frame)
 
-    for _ in range((depth//byte_lanes)*3):
+    for _ in range((depth // byte_lanes) * 3):
         await RisingEdge(dut.clk)
 
     if dut.DROP_WHEN_FULL.value or dut.MARK_WHEN_FULL.value:
@@ -264,7 +264,7 @@ async def run_test_overflow(dut):
     tb.sink.pause = False
 
     if dut.DROP_WHEN_FULL.value or dut.MARK_WHEN_FULL.value:
-        for _ in range((depth//byte_lanes)*3):
+        for _ in range((depth // byte_lanes) * 3):
             await RisingEdge(dut.clk)
 
         rx_count = 0
@@ -306,17 +306,17 @@ async def run_test_oversize(dut):
 
     tb.sink.pause = True
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), depth*2))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), depth * 2))
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for _ in range((depth//byte_lanes)*2):
+    for _ in range((depth // byte_lanes) * 2):
         await RisingEdge(dut.clk)
 
     tb.sink.pause = False
 
     if dut.DROP_OVERSIZE_FRAME.value:
-        for _ in range((depth//byte_lanes)*2):
+        for _ in range((depth // byte_lanes) * 2):
             await RisingEdge(dut.clk)
 
     else:
@@ -339,7 +339,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     tb = TB(dut)
 
     byte_lanes = tb.source.byte_lanes
-    id_count = 2**len(tb.source.bus.tid)
+    id_count = 2 ** len(tb.source.bus.tid)
 
     cur_id = 1
 
@@ -351,7 +351,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     test_frames = []
 
     for _ in range(512):
-        length = random.randint(1, byte_lanes*16)
+        length = random.randint(1, byte_lanes * 16)
         test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
@@ -366,7 +366,12 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
         cycles = 0
         while cycles < 100:
             cycles += 1
-            if not tb.source.idle() or int(dut.s_axis_tvalid.value) or int(dut.m_axis_tvalid.value) or int(dut.status_depth.value):
+            if (
+                not tb.source.idle()
+                or int(dut.s_axis_tvalid.value)
+                or int(dut.m_axis_tvalid.value)
+                or int(dut.status_depth.value)
+            ):
                 cycles = 0
             await RisingEdge(dut.clk)
 
@@ -382,7 +387,11 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
             while True:
                 test_frame = test_frames.pop(0)
-                if rx_frame.tid == test_frame.tid and rx_frame.tdest == test_frame.tdest and rx_frame.tdata == test_frame.tdata:
+                if (
+                    rx_frame.tid == test_frame.tid
+                    and rx_frame.tdest == test_frame.tdest
+                    and rx_frame.tdata == test_frame.tdata
+                ):
                     break
 
         assert len(test_frames) < 512
@@ -409,7 +418,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.m_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+[512]+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + [512] + [1] * 64
 
 
 def incrementing_payload(length):
@@ -417,7 +426,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
@@ -445,24 +453,31 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
-@pytest.mark.parametrize(("frame_fifo", "drop_oversize_frame", "drop_bad_frame",
-    "drop_when_full", "mark_when_full"),
-    [(0, 0, 0, 0, 0), (1, 0, 0, 0, 0), (1, 1, 0, 0, 0), (1, 1, 1, 0, 0),
-        (1, 1, 1, 1, 0), (0, 0, 0, 0, 1)])
-@pytest.mark.parametrize(("ram_pipeline", "output_fifo"),
-    [(0, 0), (1, 0), (4, 0), (0, 1), (1, 1), (4, 1)])
+@pytest.mark.parametrize(
+    ("frame_fifo", "drop_oversize_frame", "drop_bad_frame", "drop_when_full", "mark_when_full"),
+    [(0, 0, 0, 0, 0), (1, 0, 0, 0, 0), (1, 1, 0, 0, 0), (1, 1, 1, 0, 0), (1, 1, 1, 1, 0), (0, 0, 0, 0, 1)],
+)
+@pytest.mark.parametrize(("ram_pipeline", "output_fifo"), [(0, 0), (1, 0), (4, 0), (0, 1), (1, 1), (4, 1)])
 @pytest.mark.parametrize("data_width", [8, 16, 32, 64])
-def test_axis_fifo(request, data_width, ram_pipeline, output_fifo,
-        frame_fifo, drop_oversize_frame, drop_bad_frame,
-        drop_when_full, mark_when_full):
+def test_axis_fifo(
+    request,
+    data_width,
+    ram_pipeline,
+    output_fifo,
+    frame_fifo,
+    drop_oversize_frame,
+    drop_bad_frame,
+    drop_when_full,
+    mark_when_full,
+):
 
     dut = "axis_fifo"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -474,33 +489,32 @@ def test_axis_fifo(request, data_width, ram_pipeline, output_fifo,
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['KEEP_ENABLE'] = int(parameters['DATA_WIDTH'] > 8)
-    parameters['KEEP_WIDTH'] = (parameters['DATA_WIDTH'] + 7) // 8
-    parameters['DEPTH'] = 1024 * parameters['KEEP_WIDTH']
-    parameters['LAST_ENABLE'] = 1
-    parameters['ID_ENABLE'] = 1
-    parameters['ID_WIDTH'] = 8
-    parameters['DEST_ENABLE'] = 1
-    parameters['DEST_WIDTH'] = 8
-    parameters['USER_ENABLE'] = 1
-    parameters['USER_WIDTH'] = 1
-    parameters['RAM_PIPELINE'] = ram_pipeline
-    parameters['OUTPUT_FIFO_ENABLE'] = output_fifo
-    parameters['FRAME_FIFO'] = frame_fifo
-    parameters['USER_BAD_FRAME_VALUE'] = 1
-    parameters['USER_BAD_FRAME_MASK'] = 1
-    parameters['DROP_OVERSIZE_FRAME'] = drop_oversize_frame
-    parameters['DROP_BAD_FRAME'] = drop_bad_frame
-    parameters['DROP_WHEN_FULL'] = drop_when_full
-    parameters['MARK_WHEN_FULL'] = mark_when_full
-    parameters['PAUSE_ENABLE'] = 1
-    parameters['FRAME_PAUSE'] = 1
+    parameters["DATA_WIDTH"] = data_width
+    parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
+    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    parameters["DEPTH"] = 1024 * parameters["KEEP_WIDTH"]
+    parameters["LAST_ENABLE"] = 1
+    parameters["ID_ENABLE"] = 1
+    parameters["ID_WIDTH"] = 8
+    parameters["DEST_ENABLE"] = 1
+    parameters["DEST_WIDTH"] = 8
+    parameters["USER_ENABLE"] = 1
+    parameters["USER_WIDTH"] = 1
+    parameters["RAM_PIPELINE"] = ram_pipeline
+    parameters["OUTPUT_FIFO_ENABLE"] = output_fifo
+    parameters["FRAME_FIFO"] = frame_fifo
+    parameters["USER_BAD_FRAME_VALUE"] = 1
+    parameters["USER_BAD_FRAME_MASK"] = 1
+    parameters["DROP_OVERSIZE_FRAME"] = drop_oversize_frame
+    parameters["DROP_BAD_FRAME"] = drop_bad_frame
+    parameters["DROP_WHEN_FULL"] = drop_when_full
+    parameters["MARK_WHEN_FULL"] = mark_when_full
+    parameters["PAUSE_ENABLE"] = 1
+    parameters["FRAME_PAUSE"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

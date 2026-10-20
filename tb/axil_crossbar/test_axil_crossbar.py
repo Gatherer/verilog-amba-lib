@@ -53,8 +53,13 @@ class TB:
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
-        self.axil_master = [AxiLiteMaster(AxiLiteBus.from_prefix(dut, f"s{k:02d}_axil"), dut.clk, dut.rst) for k in range(s_count)]
-        self.axil_ram = [AxiLiteRam(AxiLiteBus.from_prefix(dut, f"m{k:02d}_axil"), dut.clk, dut.rst, size=2**16) for k in range(m_count)]
+        self.axil_master = [
+            AxiLiteMaster(AxiLiteBus.from_prefix(dut, f"s{k:02d}_axil"), dut.clk, dut.rst) for k in range(s_count)
+        ]
+        self.axil_ram = [
+            AxiLiteRam(AxiLiteBus.from_prefix(dut, f"m{k:02d}_axil"), dut.clk, dut.rst, size=2**16)
+            for k in range(m_count)
+        ]
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -99,22 +104,24 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            ram_addr = offset+0x1000
-            addr = ram_addr + m*0x1000000
+            ram_addr = offset + 0x1000
+            addr = ram_addr + m * 0x1000000
             test_data = bytearray([x % 256 for x in range(length)])
 
-            tb.axil_ram[m].write(ram_addr-128, b'\xaa'*(length+256))
+            tb.axil_ram[m].write(ram_addr - 128, b"\xaa" * (length + 256))
 
             await tb.axil_master[s].write(addr, test_data)
 
-            tb.log.debug("%s", tb.axil_ram[m].hexdump_str((ram_addr & ~0xf)-16, (((ram_addr & 0xf)+length-1) & ~0xf)+48))
+            tb.log.debug(
+                "%s", tb.axil_ram[m].hexdump_str((ram_addr & ~0xF) - 16, (((ram_addr & 0xF) + length - 1) & ~0xF) + 48)
+            )
 
             assert tb.axil_ram[m].read(ram_addr, length) == test_data
-            assert tb.axil_ram[m].read(ram_addr-1, 1) == b'\xaa'
-            assert tb.axil_ram[m].read(ram_addr+length, 1) == b'\xaa'
+            assert tb.axil_ram[m].read(ram_addr - 1, 1) == b"\xaa"
+            assert tb.axil_ram[m].read(ram_addr + length, 1) == b"\xaa"
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -131,11 +138,11 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            ram_addr = offset+0x1000
-            addr = ram_addr + m*0x1000000
+            ram_addr = offset + 0x1000
+            addr = ram_addr + m * 0x1000000
             test_data = bytearray([x % 256 for x in range(length)])
 
             tb.axil_ram[m].write(ram_addr, test_data)
@@ -161,14 +168,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
         for _ in range(count):
             m = random.randrange(len(tb.axil_ram))
             length = random.randint(1, min(32, aperture))
-            addr = offset+random.randint(0, aperture-length) + m*0x1000000
+            addr = offset + random.randint(0, aperture - length) + m * 0x1000000
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             await master.write(addr, test_data)
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             data = await master.read(addr, length)
             assert data.data == test_data
@@ -176,7 +183,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     workers = []
 
     for k in range(16):
-        workers.append(cocotb.start_soon(worker(tb.axil_master[k % len(tb.axil_master)], k*0x1000, 0x1000, count=16)))
+        workers.append(cocotb.start_soon(worker(tb.axil_master[k % len(tb.axil_master)], k * 0x1000, 0x1000, count=16)))
 
     while workers:
         await workers.pop(0)
@@ -190,7 +197,6 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     s_count = len(cocotb.top.axil_crossbar_inst.s_axil_awvalid)
     m_count = len(cocotb.top.axil_crossbar_inst.m_axil_awvalid)
 
@@ -210,9 +216,9 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil', 'v'))
-common_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axil", "v"))
+common_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "common", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -233,8 +239,7 @@ def test_axil_crossbar(request, s_count, m_count, data_width):
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{s_count}", f"{m_count}"],
-            cwd=results_dir
+            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{s_count}", f"{m_count}"], cwd=results_dir
         ).wait()
 
     verilog_sources = [
@@ -251,15 +256,14 @@ def test_axil_crossbar(request, s_count, m_count, data_width):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['ADDR_WIDTH'] = 32
-    parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
-    parameters['M_REGIONS'] = 1
+    parameters["DATA_WIDTH"] = data_width
+    parameters["ADDR_WIDTH"] = 32
+    parameters["STRB_WIDTH"] = parameters["DATA_WIDTH"] // 8
+    parameters["M_REGIONS"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 
@@ -267,7 +271,14 @@ def test_axil_crossbar(request, s_count, m_count, data_width):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNSIGNED", "-Wno-CASEINCOMPLETE", "-Wno-UNOPTFLAT", "-Wno-ASCRANGE"],
+        build_args=[
+            "-Wno-SELRANGE",
+            "-Wno-WIDTH",
+            "-Wno-UNSIGNED",
+            "-Wno-CASEINCOMPLETE",
+            "-Wno-UNOPTFLAT",
+            "-Wno-ASCRANGE",
+        ],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )

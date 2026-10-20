@@ -53,7 +53,9 @@ class TB:
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
-        self.source = [AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)]
+        self.source = [
+            AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)
+        ]
         self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
 
     def set_idle_generator(self, generator=None):
@@ -77,17 +79,19 @@ class TB:
         await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None, port=0):
+async def run_test(
+    dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None, port=0
+):
 
     tb = TB(dut)
 
     id_width = len(tb.source[0].bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
+    id_mask = id_count - 1
 
-    src_width = (len(tb.source)-1).bit_length()
-    src_mask = 2**src_width-1 if src_width else 0
-    src_shift = id_width-src_width
+    src_width = (len(tb.source) - 1).bit_length()
+    src_mask = 2**src_width - 1 if src_width else 0
+    src_shift = id_width - src_width
     max_count = 2**src_shift
 
     cur_id = 1
@@ -153,11 +157,11 @@ async def run_arb_test(dut):
     byte_lanes = tb.source[0].byte_lanes
     id_width = len(tb.source[0].bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
+    id_mask = id_count - 1
 
-    src_width = (len(tb.source)-1).bit_length()
-    src_mask = 2**src_width-1 if src_width else 0
-    src_shift = id_width-src_width
+    src_width = (len(tb.source) - 1).bit_length()
+    src_mask = 2**src_width - 1 if src_width else 0
+    src_shift = id_width - src_width
     max_count = 2**src_shift
 
     cur_id = 1
@@ -166,7 +170,7 @@ async def run_arb_test(dut):
 
     test_frames = []
 
-    length = byte_lanes*16
+    length = byte_lanes * 16
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
     for k in range(5):
@@ -215,11 +219,11 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     byte_lanes = tb.source[0].byte_lanes
     id_width = len(tb.source[0].bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
+    id_mask = id_count - 1
 
-    src_width = (len(tb.source)-1).bit_length()
-    src_mask = 2**src_width-1 if src_width else 0
-    src_shift = id_width-src_width
+    src_width = (len(tb.source) - 1).bit_length()
+    src_mask = 2**src_width - 1 if src_width else 0
+    src_shift = id_width - src_width
     max_count = 2**src_shift
 
     cur_id = 1
@@ -233,7 +237,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     for p in range(len(tb.source)):
         for _ in range(128):
-            length = random.randint(1, byte_lanes*16)
+            length = random.randint(1, byte_lanes * 16)
             test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
             test_frame = AxiStreamFrame(test_data)
             test_frame.tid = cur_id | (p << src_shift)
@@ -275,7 +279,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.s00_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+[512]+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + [512] + [1] * 64
 
 
 def incrementing_payload(length):
@@ -283,7 +287,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     ports = len(cocotb.top.axis_arb_mux_inst.s_axis_tvalid)
 
     test_params = cocotb.parametrize(
@@ -316,8 +319,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -327,7 +330,7 @@ if tests_dir not in sys.path:
 def process_f_files(files):
     lst = {}
     for f in files:
-        if f[-2:].lower() == '.f':
+        if f[-2:].lower() == ".f":
             with open(f) as fp:
                 names = fp.read().split()
             for sub in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
@@ -351,8 +354,7 @@ def test_axis_arb_mux(request, ports, data_width, round_robin):
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"],
-            cwd=results_dir
+            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"], cwd=results_dir
         ).wait()
 
     verilog_sources = [
@@ -364,27 +366,26 @@ def test_axis_arb_mux(request, ports, data_width, round_robin):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['KEEP_ENABLE'] = int(parameters['DATA_WIDTH'] > 8)
-    parameters['KEEP_WIDTH'] = (parameters['DATA_WIDTH'] + 7) // 8
-    parameters['ID_ENABLE'] = 1
-    parameters['S_ID_WIDTH'] = 8
-    parameters['M_ID_WIDTH'] = parameters['S_ID_WIDTH'] + (ports-1).bit_length()
-    parameters['DEST_ENABLE'] = 1
-    parameters['DEST_WIDTH'] = 8
-    parameters['USER_ENABLE'] = 1
-    parameters['USER_WIDTH'] = 1
-    parameters['LAST_ENABLE'] = 1
-    parameters['UPDATE_TID'] = 1
-    parameters['ARB_TYPE_ROUND_ROBIN'] = round_robin
-    parameters['ARB_LSB_HIGH_PRIORITY'] = 1
+    parameters["DATA_WIDTH"] = data_width
+    parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
+    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    parameters["ID_ENABLE"] = 1
+    parameters["S_ID_WIDTH"] = 8
+    parameters["M_ID_WIDTH"] = parameters["S_ID_WIDTH"] + (ports - 1).bit_length()
+    parameters["DEST_ENABLE"] = 1
+    parameters["DEST_WIDTH"] = 8
+    parameters["USER_ENABLE"] = 1
+    parameters["USER_WIDTH"] = 1
+    parameters["LAST_ENABLE"] = 1
+    parameters["UPDATE_TID"] = 1
+    parameters["ARB_TYPE_ROUND_ROBIN"] = round_robin
+    parameters["ARB_LSB_HIGH_PRIORITY"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    extra_env['PORTS'] = str(ports)
+    extra_env["PORTS"] = str(ports)
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

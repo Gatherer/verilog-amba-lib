@@ -52,7 +52,9 @@ class TB:
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
-        self.source = [AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)]
+        self.source = [
+            AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)
+        ]
         self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
 
         dut.enable.value = Immediate(0)
@@ -79,11 +81,13 @@ class TB:
         await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None, port=0):
+async def run_test(
+    dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None, port=0
+):
 
     tb = TB(dut)
 
-    id_count = 2**len(tb.source[port].bus.tid)
+    id_count = 2 ** len(tb.source[port].bus.tid)
 
     cur_id = 1
 
@@ -152,7 +156,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.m_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+[512]+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + [512] + [1] * 64
 
 
 def incrementing_payload(length):
@@ -160,7 +164,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     ports = len(cocotb.top.axis_mux_inst.s_axis_tvalid)
 
     test_params = cocotb.parametrize(
@@ -183,8 +186,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -204,8 +207,7 @@ def test_axis_mux(request, ports, data_width):
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"],
-            cwd=results_dir
+            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"], cwd=results_dir
         ).wait()
 
     verilog_sources = [
@@ -215,22 +217,21 @@ def test_axis_mux(request, ports, data_width):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['KEEP_ENABLE'] = int(parameters['DATA_WIDTH'] > 8)
-    parameters['KEEP_WIDTH'] = (parameters['DATA_WIDTH'] + 7) // 8
-    parameters['ID_ENABLE'] = 1
-    parameters['ID_WIDTH'] = 8
-    parameters['DEST_ENABLE'] = 1
-    parameters['DEST_WIDTH'] = 8
-    parameters['USER_ENABLE'] = 1
-    parameters['USER_WIDTH'] = 1
+    parameters["DATA_WIDTH"] = data_width
+    parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
+    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    parameters["ID_ENABLE"] = 1
+    parameters["ID_WIDTH"] = 8
+    parameters["DEST_ENABLE"] = 1
+    parameters["DEST_WIDTH"] = 8
+    parameters["USER_ENABLE"] = 1
+    parameters["USER_WIDTH"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    extra_env['PORTS'] = str(ports)
+    extra_env["PORTS"] = str(ports)
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

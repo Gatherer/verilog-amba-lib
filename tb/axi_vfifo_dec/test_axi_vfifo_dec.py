@@ -42,7 +42,6 @@ from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink
 
 
 class BaseBus(Bus):
-
     _signals = ("data",)
     _optional_signals = ()
 
@@ -63,7 +62,6 @@ class DataBus(BaseBus):
 
 
 class DataSource:
-
     def __init__(self, bus, clock, reset=None, *args, **kwargs):
         self.bus = bus
         self.clock = clock
@@ -82,7 +80,7 @@ class DataSource:
         self.seg_data_width = self.width // self.seg_count
         self.seg_byte_lanes = self.seg_data_width // self.byte_size
 
-        self.seg_data_mask = 2**self.seg_data_width-1
+        self.seg_data_mask = 2**self.seg_data_width - 1
 
         # queue per segment
         self.queue = [Queue() for x in range(self.seg_count)]
@@ -121,12 +119,12 @@ class DataSource:
 
         # pad to interface width
         if len(data) % self.byte_lanes:
-            data.extend(b'\x00'*(self.byte_lanes - (len(data) % self.byte_lanes)))
+            data.extend(b"\x00" * (self.byte_lanes - (len(data) % self.byte_lanes)))
 
         # stripe across segment queues
         index = 0
         for offset in range(0, len(data), self.seg_byte_lanes):
-            self.queue[index].put_nowait(data[offset:offset+self.seg_byte_lanes])
+            self.queue[index].put_nowait(data[offset : offset + self.seg_byte_lanes])
             index = (index + 1) % self.seg_count
 
     async def _run(self):
@@ -148,11 +146,11 @@ class DataSource:
             # process segments
             for seg in range(self.seg_count):
                 seg_mask = 1 << seg
-                if ((ready_sample & seg_mask) or not (valid & seg_mask)):
+                if (ready_sample & seg_mask) or not (valid & seg_mask):
                     if not self.queue[seg].empty() and not self.pause:
                         d = self.queue[seg].get_nowait()
-                        data &= ~(self.seg_data_mask << self.seg_data_width*seg)
-                        data |= int.from_bytes(d, 'little') << self.seg_data_width*seg
+                        data &= ~(self.seg_data_mask << self.seg_data_width * seg)
+                        data |= int.from_bytes(d, "little") << self.seg_data_width * seg
                         valid |= seg_mask
 
                         self.log.info("TX seg: %d data: %s", seg, d)
@@ -219,7 +217,9 @@ class TB:
             await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, pack=False, idle_inserter=None, backpressure_inserter=None):
+async def run_test(
+    dut, payload_lengths=None, payload_data=None, pack=False, idle_inserter=None, backpressure_inserter=None
+):
 
     tb = TB(dut)
 
@@ -230,7 +230,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, pack=False, idl
     seg_cnt = tb.source.seg_count
     seg_byte_lanes = tb.source.seg_byte_lanes
 
-    max_block_size = seg_byte_lanes*seg_cnt*16
+    max_block_size = seg_byte_lanes * seg_cnt * 16
 
     meta_id_offset = 0
     meta_dest_offset = meta_id_offset + id_width
@@ -261,7 +261,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, pack=False, idl
         test_frame_enc = bytearray()
 
         for offset in range(0, len(test_data), max_block_size):
-            block = test_data[offset:offset+max_block_size]
+            block = test_data[offset : offset + max_block_size]
             block_enc = bytearray()
 
             meta = test_frame.tid << meta_id_offset
@@ -270,21 +270,21 @@ async def run_test(dut, payload_lengths=None, payload_data=None, pack=False, idl
 
             # pack header
             hdr = 0x1
-            if offset+len(block) >= len(test_data):
+            if offset + len(block) >= len(test_data):
                 # last block
                 hdr |= 0x2
-            hdr |= (len(block)-1) << 4
+            hdr |= (len(block) - 1) << 4
             hdr |= (bin(hdr & 0x0003).count("1") & 1) << 2
-            hdr |= (bin(hdr & 0xfff0).count("1") & 1) << 3
+            hdr |= (bin(hdr & 0xFFF0).count("1") & 1) << 3
             hdr |= meta << 16
 
             # pack data
-            block_enc.extend(hdr.to_bytes(hdr_size, 'little'))
+            block_enc.extend(hdr.to_bytes(hdr_size, "little"))
             block_enc.extend(block)
 
             # zero pad to segment size
             if len(block_enc) % seg_byte_lanes:
-                block_enc.extend(b'\x00'*(seg_byte_lanes - (len(block_enc) % seg_byte_lanes)))
+                block_enc.extend(b"\x00" * (seg_byte_lanes - (len(block_enc) % seg_byte_lanes)))
 
             test_frame_enc.extend(block_enc)
 
@@ -323,7 +323,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.m_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+list(range(byte_width, 2**14, byte_width))+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + list(range(byte_width, 2**14, byte_width)) + [1] * 64
 
 
 def incrementing_payload(length):
@@ -331,7 +331,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
@@ -346,19 +345,22 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
-@pytest.mark.parametrize(("axis_data_width", "seg_width", "seg_cnt"), [
-            # (32, 32, 2),
-            # (64, 256, 4),
-            (512, 256, 4),
-        ])
+@pytest.mark.parametrize(
+    ("axis_data_width", "seg_width", "seg_cnt"),
+    [
+        # (32, 32, 2),
+        # (64, 256, 4),
+        (512, 256, 4),
+    ],
+)
 def test_axi_vfifo_dec(request, axis_data_width, seg_width, seg_cnt):
     dut = "axi_vfifo_dec"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -370,23 +372,22 @@ def test_axi_vfifo_dec(request, axis_data_width, seg_width, seg_cnt):
 
     parameters = {}
 
-    parameters['SEG_WIDTH'] = seg_width
-    parameters['SEG_CNT'] = seg_cnt
-    parameters['AXIS_DATA_WIDTH'] = axis_data_width
-    parameters['AXIS_KEEP_ENABLE'] = int(parameters['AXIS_DATA_WIDTH'] > 8)
-    parameters['AXIS_KEEP_WIDTH'] = parameters['AXIS_DATA_WIDTH'] // 8
-    parameters['AXIS_LAST_ENABLE'] = 1
-    parameters['AXIS_ID_ENABLE'] = 1
-    parameters['AXIS_ID_WIDTH'] = 8
-    parameters['AXIS_DEST_ENABLE'] = 1
-    parameters['AXIS_DEST_WIDTH'] = 8
-    parameters['AXIS_USER_ENABLE'] = 1
-    parameters['AXIS_USER_WIDTH'] = 1
+    parameters["SEG_WIDTH"] = seg_width
+    parameters["SEG_CNT"] = seg_cnt
+    parameters["AXIS_DATA_WIDTH"] = axis_data_width
+    parameters["AXIS_KEEP_ENABLE"] = int(parameters["AXIS_DATA_WIDTH"] > 8)
+    parameters["AXIS_KEEP_WIDTH"] = parameters["AXIS_DATA_WIDTH"] // 8
+    parameters["AXIS_LAST_ENABLE"] = 1
+    parameters["AXIS_ID_ENABLE"] = 1
+    parameters["AXIS_ID_WIDTH"] = 8
+    parameters["AXIS_DEST_ENABLE"] = 1
+    parameters["AXIS_DEST_WIDTH"] = 8
+    parameters["AXIS_USER_ENABLE"] = 1
+    parameters["AXIS_USER_WIDTH"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

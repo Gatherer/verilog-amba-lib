@@ -198,14 +198,22 @@ class TB:
             await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
-        stream_idle_inserter=None, stream_backpressure_inserter=None,
-        axi_0_idle_inserter=None, axi_0_backpressure_inserter=None,
-        axi_idle_inserter=None, axi_backpressure_inserter=None):
+async def run_test(
+    dut,
+    payload_lengths=None,
+    payload_data=None,
+    space=False,
+    stream_idle_inserter=None,
+    stream_backpressure_inserter=None,
+    axi_0_idle_inserter=None,
+    axi_0_backpressure_inserter=None,
+    axi_idle_inserter=None,
+    axi_backpressure_inserter=None,
+):
 
     tb = TB(dut)
 
-    id_count = 2**len(tb.source.bus.tid)
+    id_count = 2 ** len(tb.source.bus.tid)
 
     cur_id = 1
 
@@ -219,7 +227,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
     tb.set_axi_0_idle_generator(axi_0_idle_inserter)
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
     test_frames = []
@@ -264,10 +272,10 @@ async def run_test_tuser_assert(dut):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 32*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 32 * byte_lanes))
     test_frame = AxiStreamFrame(test_data, tuser=1)
     await tb.source.send(test_frame)
 
@@ -291,12 +299,12 @@ async def run_test_init_sink_pause(dut):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
@@ -325,12 +333,12 @@ async def run_test_init_sink_pause_reset(dut, reset_type=TB.reset):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
@@ -369,10 +377,10 @@ async def run_test_shift_in_reset(dut, reset_type=TB.reset):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
@@ -409,10 +417,10 @@ async def run_test_shift_out_reset(dut, reset_type=TB.reset):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
@@ -449,14 +457,14 @@ async def run_test_overflow(dut):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
-    ram_size = 2**tb.axi_ram[0].write_if.address_width*len(tb.axi_ram)
+    ram_size = 2 ** tb.axi_ram[0].write_if.address_width * len(tb.axi_ram)
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 2*ram_size))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 2 * ram_size))
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
@@ -476,22 +484,28 @@ async def run_test_overflow(dut):
     await RisingEdge(dut.s_axis_clk)
 
 
-async def run_stress_test(dut, space=False,
-        stream_idle_inserter=None, stream_backpressure_inserter=None,
-        axi_0_idle_inserter=None, axi_0_backpressure_inserter=None,
-        axi_idle_inserter=None, axi_backpressure_inserter=None):
+async def run_stress_test(
+    dut,
+    space=False,
+    stream_idle_inserter=None,
+    stream_backpressure_inserter=None,
+    axi_0_idle_inserter=None,
+    axi_0_backpressure_inserter=None,
+    axi_idle_inserter=None,
+    axi_backpressure_inserter=None,
+):
 
     tb = TB(dut)
 
     byte_lanes = tb.source.byte_lanes
-    id_count = 2**len(tb.source.bus.tid)
+    id_count = 2 ** len(tb.source.bus.tid)
 
     cur_id = 1
 
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**16-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2**16 - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.set_stream_idle_generator(stream_idle_inserter)
@@ -504,7 +518,7 @@ async def run_stress_test(dut, space=False,
     test_frames = []
 
     for _ in range(128):
-        length = random.randint(1, byte_lanes*16)
+        length = random.randint(1, byte_lanes * 16)
         test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
@@ -543,7 +557,9 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.m_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+list(range(byte_width, byte_width*32, byte_width))+[2**14]+[1]*64
+    return (
+        list(range(1, byte_width * 4 + 1)) + list(range(byte_width, byte_width * 32, byte_width)) + [2**14] + [1] * 64
+    )
 
 
 def incrementing_payload(length):
@@ -551,29 +567,36 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
-        (("space",
-                "stream_idle_inserter", "stream_backpressure_inserter",
-                "axi_0_idle_inserter", "axi_0_backpressure_inserter",
-                "axi_idle_inserter", "axi_backpressure_inserter"), [
-            (False, None, None, None, None, None, None),
-            (False, cycle_pause, None, None, None, None, None),
-            (False, None, cycle_pause, None, None, None, None),
-            (False, None, None, cycle_pause, None, None, None),
-            (False, None, None, None, cycle_pause, None, None),
-            (False, None, None, None, None, cycle_pause, None),
-            (False, None, None, None, None, None, cycle_pause),
-            (True,  None, None, None, None, None, None),
-            (True,  cycle_pause, None, None, None, None, None),
-            (True,  None, cycle_pause, None, None, None, None),
-            (True,  None, None, cycle_pause, None, None, None),
-            (True,  None, None, None, cycle_pause, None, None),
-            (True,  None, None, None, None, cycle_pause, None),
-            (True,  None, None, None, None, None, cycle_pause),
-        ]),
+        (
+            (
+                "space",
+                "stream_idle_inserter",
+                "stream_backpressure_inserter",
+                "axi_0_idle_inserter",
+                "axi_0_backpressure_inserter",
+                "axi_idle_inserter",
+                "axi_backpressure_inserter",
+            ),
+            [
+                (False, None, None, None, None, None, None),
+                (False, cycle_pause, None, None, None, None, None),
+                (False, None, cycle_pause, None, None, None, None),
+                (False, None, None, cycle_pause, None, None, None),
+                (False, None, None, None, cycle_pause, None, None),
+                (False, None, None, None, None, cycle_pause, None),
+                (False, None, None, None, None, None, cycle_pause),
+                (True, None, None, None, None, None, None),
+                (True, cycle_pause, None, None, None, None, None),
+                (True, None, cycle_pause, None, None, None, None),
+                (True, None, None, cycle_pause, None, None, None),
+                (True, None, None, None, cycle_pause, None, None),
+                (True, None, None, None, None, cycle_pause, None),
+                (True, None, None, None, None, None, cycle_pause),
+            ],
+        ),
     )
 
     run_test = cocotb.test(test_params(run_test))
@@ -583,8 +606,7 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_overflow = cocotb.test(run_test_overflow)
 
     test_params = cocotb.parametrize(
-        ("reset_type", [TB.reset, TB.reset_source,
-                TB.reset_sink, TB.reset_axi_0, TB.reset_axi, TB.reset_cfg]),
+        ("reset_type", [TB.reset, TB.reset_source, TB.reset_sink, TB.reset_axi_0, TB.reset_axi, TB.reset_cfg]),
     )
 
     run_test_init_sink_pause_reset = cocotb.test(test_params(run_test_init_sink_pause_reset))
@@ -592,25 +614,33 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_shift_out_reset = cocotb.test(test_params(run_test_shift_out_reset))
 
     test_params = cocotb.parametrize(
-        (("space",
-                "stream_idle_inserter", "stream_backpressure_inserter",
-                "axi_0_idle_inserter", "axi_0_backpressure_inserter",
-                "axi_idle_inserter", "axi_backpressure_inserter"), [
-            (False, None, None, None, None, None, None),
-            (False, cycle_pause, None, None, None, None, None),
-            (False, None, cycle_pause, None, None, None, None),
-            (False, None, None, cycle_pause, None, None, None),
-            (False, None, None, None, cycle_pause, None, None),
-            (False, None, None, None, None, cycle_pause, None),
-            (False, None, None, None, None, None, cycle_pause),
-            (True,  None, None, None, None, None, None),
-            (True,  cycle_pause, None, None, None, None, None),
-            (True,  None, cycle_pause, None, None, None, None),
-            (True,  None, None, cycle_pause, None, None, None),
-            (True,  None, None, None, cycle_pause, None, None),
-            (True,  None, None, None, None, cycle_pause, None),
-            (True,  None, None, None, None, None, cycle_pause),
-        ]),
+        (
+            (
+                "space",
+                "stream_idle_inserter",
+                "stream_backpressure_inserter",
+                "axi_0_idle_inserter",
+                "axi_0_backpressure_inserter",
+                "axi_idle_inserter",
+                "axi_backpressure_inserter",
+            ),
+            [
+                (False, None, None, None, None, None, None),
+                (False, cycle_pause, None, None, None, None, None),
+                (False, None, cycle_pause, None, None, None, None),
+                (False, None, None, cycle_pause, None, None, None),
+                (False, None, None, None, cycle_pause, None, None),
+                (False, None, None, None, None, cycle_pause, None),
+                (False, None, None, None, None, None, cycle_pause),
+                (True, None, None, None, None, None, None),
+                (True, cycle_pause, None, None, None, None, None),
+                (True, None, cycle_pause, None, None, None, None),
+                (True, None, None, cycle_pause, None, None, None),
+                (True, None, None, None, cycle_pause, None, None),
+                (True, None, None, None, None, cycle_pause, None),
+                (True, None, None, None, None, None, cycle_pause),
+            ],
+        ),
     )
 
     run_stress_test = cocotb.test(test_params(run_stress_test))
@@ -619,8 +649,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -628,11 +658,14 @@ if tests_dir not in sys.path:
 
 
 @pytest.mark.skip(reason="hangs under Verilator (sink never receives data), not yet debugged")
-@pytest.mark.parametrize(("axis_data_width", "axi_ch", "axi_data_width"), [
-            # (32, 1, 32),
-            # (32, 2, 32),
-            (512, 2, 512),
-        ])
+@pytest.mark.parametrize(
+    ("axis_data_width", "axi_ch", "axi_data_width"),
+    [
+        # (32, 1, 32),
+        # (32, 2, 32),
+        (512, 2, 512),
+    ],
+)
 def test_axi_vfifo(request, axis_data_width, axi_ch, axi_data_width):
     dut = "axi_vfifo"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -649,33 +682,32 @@ def test_axi_vfifo(request, axis_data_width, axi_ch, axi_data_width):
 
     parameters = {}
 
-    parameters['AXI_CH'] = axi_ch
-    parameters['AXI_DATA_WIDTH'] = axi_data_width
-    parameters['AXI_ADDR_WIDTH'] = 16
-    parameters['AXI_STRB_WIDTH'] = parameters['AXI_DATA_WIDTH'] // 8
-    parameters['AXI_ID_WIDTH'] = 8
-    parameters['AXI_MAX_BURST_LEN'] = 16
-    parameters['AXIS_DATA_WIDTH'] = axis_data_width
-    parameters['AXIS_KEEP_ENABLE'] = int(parameters['AXIS_DATA_WIDTH'] > 8)
-    parameters['AXIS_KEEP_WIDTH'] = parameters['AXIS_DATA_WIDTH'] // 8
-    parameters['AXIS_LAST_ENABLE'] = 1
-    parameters['AXIS_ID_ENABLE'] = 1
-    parameters['AXIS_ID_WIDTH'] = 8
-    parameters['AXIS_DEST_ENABLE'] = 1
-    parameters['AXIS_DEST_WIDTH'] = 8
-    parameters['AXIS_USER_ENABLE'] = 1
-    parameters['AXIS_USER_WIDTH'] = 1
-    parameters['LEN_WIDTH'] = parameters['AXI_ADDR_WIDTH']
-    parameters['MAX_SEG_WIDTH'] = 256
-    parameters['WRITE_FIFO_DEPTH'] = 64
-    parameters['WRITE_MAX_BURST_LEN'] = parameters['WRITE_FIFO_DEPTH'] // 4
-    parameters['READ_FIFO_DEPTH'] = 128
-    parameters['READ_MAX_BURST_LEN'] = parameters['WRITE_MAX_BURST_LEN']
+    parameters["AXI_CH"] = axi_ch
+    parameters["AXI_DATA_WIDTH"] = axi_data_width
+    parameters["AXI_ADDR_WIDTH"] = 16
+    parameters["AXI_STRB_WIDTH"] = parameters["AXI_DATA_WIDTH"] // 8
+    parameters["AXI_ID_WIDTH"] = 8
+    parameters["AXI_MAX_BURST_LEN"] = 16
+    parameters["AXIS_DATA_WIDTH"] = axis_data_width
+    parameters["AXIS_KEEP_ENABLE"] = int(parameters["AXIS_DATA_WIDTH"] > 8)
+    parameters["AXIS_KEEP_WIDTH"] = parameters["AXIS_DATA_WIDTH"] // 8
+    parameters["AXIS_LAST_ENABLE"] = 1
+    parameters["AXIS_ID_ENABLE"] = 1
+    parameters["AXIS_ID_WIDTH"] = 8
+    parameters["AXIS_DEST_ENABLE"] = 1
+    parameters["AXIS_DEST_WIDTH"] = 8
+    parameters["AXIS_USER_ENABLE"] = 1
+    parameters["AXIS_USER_WIDTH"] = 1
+    parameters["LEN_WIDTH"] = parameters["AXI_ADDR_WIDTH"]
+    parameters["MAX_SEG_WIDTH"] = 256
+    parameters["WRITE_FIFO_DEPTH"] = 64
+    parameters["WRITE_MAX_BURST_LEN"] = parameters["WRITE_FIFO_DEPTH"] // 4
+    parameters["READ_FIFO_DEPTH"] = 128
+    parameters["READ_MAX_BURST_LEN"] = parameters["WRITE_MAX_BURST_LEN"]
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

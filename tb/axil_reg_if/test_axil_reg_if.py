@@ -106,7 +106,7 @@ class TB:
 
                 data = self.mem.read(byte_lanes)
 
-                self.dut.reg_rd_data.value = int.from_bytes(data, 'little')
+                self.dut.reg_rd_data.value = int.from_bytes(data, "little")
                 self.dut.reg_rd_wait.value = 0
                 self.dut.reg_rd_ack.value = 1
                 await RisingEdge(self.dut.clk)
@@ -131,11 +131,11 @@ class TB:
 
                 self.mem.seek(addr)
 
-                data = data.to_bytes(byte_lanes, 'little')
+                data = data.to_bytes(byte_lanes, "little")
 
                 for i in range(byte_lanes):
                     if strb & (1 << i):
-                        self.mem.write(data[i:i+1])
+                        self.mem.write(data[i : i + 1])
                     else:
                         self.mem.seek(1, 1)
 
@@ -163,21 +163,21 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x100
+            addr = offset + 0x100
             test_data = bytearray([x % 256 for x in range(length)])
 
-            tb.mem_write(addr-128, b'\xaa'*(length+256))
+            tb.mem_write(addr - 128, b"\xaa" * (length + 256))
 
             await tb.axil_master.write(addr, test_data)
 
-            tb.log.debug("%s", tb.mem_read((addr & ~0xf)-16, (((addr & 0xf)+length-1) & ~0xf)+48))
+            tb.log.debug("%s", tb.mem_read((addr & ~0xF) - 16, (((addr & 0xF) + length - 1) & ~0xF) + 48))
 
             assert tb.mem_read(addr, length) == test_data
-            assert tb.mem_read(addr-1, 1) == b'\xaa'
-            assert tb.mem_read(addr+length, 1) == b'\xaa'
+            assert tb.mem_read(addr - 1, 1) == b"\xaa"
+            assert tb.mem_read(addr + length, 1) == b"\xaa"
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -194,10 +194,10 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x100
+            addr = offset + 0x100
             test_data = bytearray([x % 256 for x in range(length)])
 
             tb.mem_write(addr, test_data)
@@ -222,14 +222,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     async def worker(master, offset, aperture, count=16):
         for _ in range(count):
             length = random.randint(1, min(32, aperture))
-            addr = offset+random.randint(0, aperture-length)
+            addr = offset + random.randint(0, aperture - length)
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             await master.write(addr, test_data)
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             data = await master.read(addr, length)
             assert data.data == test_data
@@ -237,7 +237,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     workers = []
 
     for k in range(16):
-        workers.append(cocotb.start_soon(worker(tb.axil_master, k*0x100, 0x100, count=16)))
+        workers.append(cocotb.start_soon(worker(tb.axil_master, k * 0x100, 0x100, count=16)))
 
     while workers:
         await workers.pop(0)
@@ -251,7 +251,6 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
@@ -266,8 +265,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axil", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -288,17 +287,16 @@ def test_axil_reg_if(request, data_width):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['ADDR_WIDTH'] = 16
-    parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
-    parameters['TIMEOUT'] = 4
+    parameters["DATA_WIDTH"] = data_width
+    parameters["ADDR_WIDTH"] = 16
+    parameters["STRB_WIDTH"] = parameters["DATA_WIDTH"] // 8
+    parameters["TIMEOUT"] = 4
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    extra_env['COCOTB_RESOLVE_X'] = 'RANDOM'
+    extra_env["COCOTB_RESOLVE_X"] = "RANDOM"
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

@@ -39,12 +39,12 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiBus, AxiRam
 from cocotbext.axi.stream import define_stream
 
-DescBus, DescTransaction, DescSource, DescSink, DescMonitor = define_stream("Desc",
-    signals=["read_addr", "write_addr", "len", "tag", "valid", "ready"]
+DescBus, DescTransaction, DescSource, DescSink, DescMonitor = define_stream(
+    "Desc", signals=["read_addr", "write_addr", "len", "tag", "valid", "ready"]
 )
 
-DescStatusBus, DescStatusTransaction, DescStatusSource, DescStatusSink, DescStatusMonitor = define_stream("DescStatus",
-    signals=["tag", "error", "valid"]
+DescStatusBus, DescStatusTransaction, DescStatusSource, DescStatusSink, DescStatusMonitor = define_stream(
+    "DescStatus", signals=["tag", "error", "valid"]
 )
 
 
@@ -96,7 +96,7 @@ async def run_test(dut, data_in=None, idle_inserter=None, backpressure_inserter=
 
     byte_lanes = tb.axi_ram.write_if.byte_lanes
     step_size = 1 if int(os.getenv("PARAM_ENABLE_UNALIGNED")) else byte_lanes
-    tag_count = 2**len(tb.desc_source.bus.tag)
+    tag_count = 2 ** len(tb.desc_source.bus.tag)
 
     cur_tag = 1
 
@@ -108,15 +108,19 @@ async def run_test(dut, data_in=None, idle_inserter=None, backpressure_inserter=
     dut.enable.value = 1
 
     for length in [*list(range(1, byte_lanes * 4 + 1)), 128]:
-        for read_offset in list(range(8, 8+byte_lanes*2, step_size))+list(range(4096-byte_lanes*2, 4096, step_size)):
-            for write_offset in list(range(8, 8+byte_lanes*2, step_size))+list(range(4096-byte_lanes*2, 4096, step_size)):
+        for read_offset in list(range(8, 8 + byte_lanes * 2, step_size)) + list(
+            range(4096 - byte_lanes * 2, 4096, step_size)
+        ):
+            for write_offset in list(range(8, 8 + byte_lanes * 2, step_size)) + list(
+                range(4096 - byte_lanes * 2, 4096, step_size)
+            ):
                 tb.log.info("length %d, read_offset %d, write_offset %d", length, read_offset, write_offset)
-                read_addr = read_offset+0x1000
-                write_addr = 0x00008000+write_offset+0x1000
+                read_addr = read_offset + 0x1000
+                write_addr = 0x00008000 + write_offset + 0x1000
                 test_data = bytearray([x % 256 for x in range(length)])
 
                 tb.axi_ram.write(read_addr, test_data)
-                tb.axi_ram.write(write_addr & 0xffff80, b'\xaa'*(len(test_data)+256))
+                tb.axi_ram.write(write_addr & 0xFFFF80, b"\xaa" * (len(test_data) + 256))
 
                 desc = DescTransaction(read_addr=read_addr, write_addr=write_addr, len=len(test_data), tag=cur_tag)
                 await tb.desc_source.send(desc)
@@ -127,9 +131,12 @@ async def run_test(dut, data_in=None, idle_inserter=None, backpressure_inserter=
                 assert int(status.tag) == cur_tag
                 assert int(status.error) == 0
 
-                tb.log.debug("%s", tb.axi_ram.hexdump_str((write_addr & ~0xf)-16, (((write_addr & 0xf)+length-1) & ~0xf)+48))
+                tb.log.debug(
+                    "%s",
+                    tb.axi_ram.hexdump_str((write_addr & ~0xF) - 16, (((write_addr & 0xF) + length - 1) & ~0xF) + 48),
+                )
 
-                assert tb.axi_ram.read(write_addr-8, len(test_data)+16) == b'\xaa'*8+test_data+b'\xaa'*8
+                assert tb.axi_ram.read(write_addr - 8, len(test_data) + 16) == b"\xaa" * 8 + test_data + b"\xaa" * 8
 
                 cur_tag = (cur_tag + 1) % tag_count
 
@@ -142,7 +149,6 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
@@ -154,8 +160,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -175,19 +181,18 @@ def test_axi_cdma(request, axi_data_width, unaligned):
 
     parameters = {}
 
-    parameters['AXI_DATA_WIDTH'] = axi_data_width
-    parameters['AXI_ADDR_WIDTH'] = 16
-    parameters['AXI_STRB_WIDTH'] = parameters['AXI_DATA_WIDTH'] // 8
-    parameters['AXI_ID_WIDTH'] = 8
-    parameters['AXI_MAX_BURST_LEN'] = 16
-    parameters['LEN_WIDTH'] = 20
-    parameters['TAG_WIDTH'] = 8
-    parameters['ENABLE_UNALIGNED'] = unaligned
+    parameters["AXI_DATA_WIDTH"] = axi_data_width
+    parameters["AXI_ADDR_WIDTH"] = 16
+    parameters["AXI_STRB_WIDTH"] = parameters["AXI_DATA_WIDTH"] // 8
+    parameters["AXI_ID_WIDTH"] = 8
+    parameters["AXI_MAX_BURST_LEN"] = 16
+    parameters["LEN_WIDTH"] = 20
+    parameters["TAG_WIDTH"] = 8
+    parameters["ENABLE_UNALIGNED"] = unaligned
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

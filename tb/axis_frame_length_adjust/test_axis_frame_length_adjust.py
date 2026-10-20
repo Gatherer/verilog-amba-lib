@@ -40,9 +40,10 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 from cocotbext.axi.stream import define_stream
 
-StatusBus, StatusTransaction, StatusSource, StatusSink, StatusMonitor = define_stream("Status",
+StatusBus, StatusTransaction, StatusSource, StatusSink, StatusMonitor = define_stream(
+    "Status",
     signals=["frame_pad", "frame_truncate", "frame_length", "frame_original_length", "valid"],
-    optional_signals=["ready"]
+    optional_signals=["ready"],
 )
 
 
@@ -90,7 +91,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     data_width = len(tb.source.bus.tkeep)
     byte_width = data_width // 8
-    id_count = 2**len(tb.source.bus.tid)
+    id_count = 2 ** len(tb.source.bus.tid)
 
     cur_id = 1
 
@@ -99,8 +100,8 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length_max in range(1, byte_width*2+2):
-        for length_min in range(0, length_max+1):
+    for length_max in range(1, byte_width * 2 + 2):
+        for length_min in range(0, length_max + 1):
             tb.log.info("length_min %d, length_max %d", length_min, length_max)
 
             await RisingEdge(dut.clk)
@@ -175,7 +176,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.m_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+[512]+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + [512] + [1] * 64
 
 
 def incrementing_payload(length):
@@ -183,7 +184,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
@@ -199,8 +199,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -219,20 +219,19 @@ def test_axis_frame_length_adjust(request, data_width):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['KEEP_ENABLE'] = int(parameters['DATA_WIDTH'] > 8)
-    parameters['KEEP_WIDTH'] = (parameters['DATA_WIDTH'] + 7) // 8
-    parameters['ID_ENABLE'] = 1
-    parameters['ID_WIDTH'] = 8
-    parameters['DEST_ENABLE'] = 1
-    parameters['DEST_WIDTH'] = 8
-    parameters['USER_ENABLE'] = 1
-    parameters['USER_WIDTH'] = 1
+    parameters["DATA_WIDTH"] = data_width
+    parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
+    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    parameters["ID_ENABLE"] = 1
+    parameters["ID_WIDTH"] = 8
+    parameters["DEST_ENABLE"] = 1
+    parameters["DEST_WIDTH"] = 8
+    parameters["USER_ENABLE"] = 1
+    parameters["USER_WIDTH"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

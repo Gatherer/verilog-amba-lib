@@ -42,7 +42,6 @@ from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource
 
 
 class BaseBus(Bus):
-
     _signals = ("data",)
     _optional_signals = ()
 
@@ -63,7 +62,6 @@ class DataBus(BaseBus):
 
 
 class DataSink:
-
     def __init__(self, bus, clock, reset=None, watermark=None, *args, **kwargs):
         self.bus = bus
         self.clock = clock
@@ -87,7 +85,7 @@ class DataSink:
         self.seg_data_width = self.width // self.seg_count
         self.seg_byte_lanes = self.seg_data_width // self.byte_size
 
-        self.seg_data_mask = 2**self.seg_data_width-1
+        self.seg_data_mask = 2**self.seg_data_width - 1
 
         # queue per segment
         self.queue = [Queue() for x in range(self.seg_count)]
@@ -175,9 +173,9 @@ class DataSink:
             for seg in range(self.seg_count):
                 seg_mask = 1 << seg
                 if (ready & seg_mask or not has_ready) and (valid_sample & seg_mask):
-                    data = (data_sample >> self.seg_data_width*seg) & self.seg_data_mask
+                    data = (data_sample >> self.seg_data_width * seg) & self.seg_data_mask
 
-                    data = data.to_bytes(self.seg_byte_lanes, 'little')
+                    data = data.to_bytes(self.seg_byte_lanes, "little")
 
                     self.queue[seg].put_nowait(data)
                     self.enqueue_event.set()
@@ -187,7 +185,7 @@ class DataSink:
                 if has_watermark and self.watermark_level > 0 and self.queue[seg].qsize() > self.watermark_level:
                     watermark = 1
 
-            ready = 2**self.seg_count-1
+            ready = 2**self.seg_count - 1
 
             if self.pause:
                 ready = 0
@@ -254,7 +252,9 @@ class TB:
             await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, space=False, idle_inserter=None, backpressure_inserter=None):
+async def run_test(
+    dut, payload_lengths=None, payload_data=None, space=False, idle_inserter=None, backpressure_inserter=None
+):
 
     tb = TB(dut)
 
@@ -304,23 +304,23 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False, id
             # print(block)
 
             # extract header
-            hdr = int.from_bytes(block[0:hdr_size], 'little')
+            hdr = int.from_bytes(block[0:hdr_size], "little")
             # print(hex(hdr))
 
             # check parity bits
             assert bool(hdr & 0x4) == bool(bin(hdr & 0x0003).count("1") & 1)
-            assert bool(hdr & 0x8) == bool(bin(hdr & 0xfff0).count("1") & 1)
+            assert bool(hdr & 0x8) == bool(bin(hdr & 0xFFF0).count("1") & 1)
 
             if not hdr & 1:
                 # null block, skip
                 continue
 
-            length = ((hdr >> 4) & 0xfff)+1
+            length = ((hdr >> 4) & 0xFFF) + 1
             meta = hdr >> 16
 
-            rx_frame.tid = (meta >> meta_id_offset) & (2**id_width-1)
-            rx_frame.tdest = (meta >> meta_dest_offset) & (2**dest_width-1)
-            rx_frame.tuser = (meta >> meta_user_offset) & (2**user_width-1)
+            rx_frame.tid = (meta >> meta_id_offset) & (2**id_width - 1)
+            rx_frame.tdest = (meta >> meta_dest_offset) & (2**dest_width - 1)
+            rx_frame.tuser = (meta >> meta_user_offset) & (2**user_width - 1)
 
             data = block[hdr_size:]
 
@@ -354,7 +354,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.s_axis_tdata)
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+list(range(byte_width, 2**14, byte_width))+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + list(range(byte_width, 2**14, byte_width)) + [1] * 64
 
 
 def incrementing_payload(length):
@@ -362,7 +362,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
@@ -377,19 +376,22 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
-@pytest.mark.parametrize(("axis_data_width", "seg_width", "seg_cnt"), [
-            # (32, 32, 2),
-            # (64, 256, 4),
-            (512, 256, 4),
-        ])
+@pytest.mark.parametrize(
+    ("axis_data_width", "seg_width", "seg_cnt"),
+    [
+        # (32, 32, 2),
+        # (64, 256, 4),
+        (512, 256, 4),
+    ],
+)
 def test_axi_vfifo_enc(request, axis_data_width, seg_width, seg_cnt):
     dut = "axi_vfifo_enc"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -401,23 +403,22 @@ def test_axi_vfifo_enc(request, axis_data_width, seg_width, seg_cnt):
 
     parameters = {}
 
-    parameters['SEG_WIDTH'] = seg_width
-    parameters['SEG_CNT'] = seg_cnt
-    parameters['AXIS_DATA_WIDTH'] = axis_data_width
-    parameters['AXIS_KEEP_ENABLE'] = int(parameters['AXIS_DATA_WIDTH'] > 8)
-    parameters['AXIS_KEEP_WIDTH'] = parameters['AXIS_DATA_WIDTH'] // 8
-    parameters['AXIS_LAST_ENABLE'] = 1
-    parameters['AXIS_ID_ENABLE'] = 1
-    parameters['AXIS_ID_WIDTH'] = 8
-    parameters['AXIS_DEST_ENABLE'] = 1
-    parameters['AXIS_DEST_WIDTH'] = 8
-    parameters['AXIS_USER_ENABLE'] = 1
-    parameters['AXIS_USER_WIDTH'] = 1
+    parameters["SEG_WIDTH"] = seg_width
+    parameters["SEG_CNT"] = seg_cnt
+    parameters["AXIS_DATA_WIDTH"] = axis_data_width
+    parameters["AXIS_KEEP_ENABLE"] = int(parameters["AXIS_DATA_WIDTH"] > 8)
+    parameters["AXIS_KEEP_WIDTH"] = parameters["AXIS_DATA_WIDTH"] // 8
+    parameters["AXIS_LAST_ENABLE"] = 1
+    parameters["AXIS_ID_ENABLE"] = 1
+    parameters["AXIS_ID_WIDTH"] = 8
+    parameters["AXIS_DEST_ENABLE"] = 1
+    parameters["AXIS_DEST_WIDTH"] = 8
+    parameters["AXIS_USER_ENABLE"] = 1
+    parameters["AXIS_USER_WIDTH"] = 1
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

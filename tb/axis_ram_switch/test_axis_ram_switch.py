@@ -54,8 +54,12 @@ class TB:
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
-        self.source = [AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(s_count)]
-        self.sink = [AxiStreamSink(AxiStreamBus.from_prefix(dut, f"m{k:02d}_axis"), dut.clk, dut.rst) for k in range(m_count)]
+        self.source = [
+            AxiStreamSource(AxiStreamBus.from_prefix(dut, f"s{k:02d}_axis"), dut.clk, dut.rst) for k in range(s_count)
+        ]
+        self.sink = [
+            AxiStreamSink(AxiStreamBus.from_prefix(dut, f"m{k:02d}_axis"), dut.clk, dut.rst) for k in range(m_count)
+        ]
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -79,17 +83,19 @@ class TB:
         await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None, s=0, m=0):
+async def run_test(
+    dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None, s=0, m=0
+):
 
     tb = TB(dut)
 
     id_width = len(tb.source[0].bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
+    id_mask = id_count - 1
 
-    src_width = (len(tb.source)-1).bit_length()
-    src_mask = 2**src_width-1 if src_width else 0
-    src_shift = id_width-src_width
+    src_width = (len(tb.source) - 1).bit_length()
+    src_mask = 2**src_width - 1 if src_width else 0
+    src_shift = id_width - src_width
     max_count = 2**src_shift
 
     cur_id = 1
@@ -155,11 +161,11 @@ async def run_arb_test(dut):
     byte_lanes = max(tb.source[0].byte_lanes, tb.sink[0].byte_lanes)
     id_width = len(tb.source[0].bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
+    id_mask = id_count - 1
 
-    src_width = (len(tb.source)-1).bit_length()
-    src_mask = 2**src_width-1 if src_width else 0
-    src_shift = id_width-src_width
+    src_width = (len(tb.source) - 1).bit_length()
+    src_mask = 2**src_width - 1 if src_width else 0
+    src_shift = id_width - src_width
     max_count = 2**src_shift
 
     cur_id = 1
@@ -168,7 +174,7 @@ async def run_arb_test(dut):
 
     test_frames = []
 
-    length = byte_lanes*16
+    length = byte_lanes * 16
     test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
 
     for k in range(5):
@@ -217,11 +223,11 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     byte_lanes = max(tb.source[0].byte_lanes, tb.sink[0].byte_lanes)
     id_width = len(tb.source[0].bus.tid)
     id_count = 2**id_width
-    id_mask = id_count-1
+    id_mask = id_count - 1
 
-    src_width = (len(tb.source)-1).bit_length()
-    src_mask = 2**src_width-1 if src_width else 0
-    src_shift = id_width-src_width
+    src_width = (len(tb.source) - 1).bit_length()
+    src_mask = 2**src_width - 1 if src_width else 0
+    src_shift = id_width - src_width
     max_count = 2**src_shift
 
     cur_id = 1
@@ -235,7 +241,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     for p in range(len(tb.source)):
         for _ in range(128):
-            length = random.randint(1, byte_lanes*16)
+            length = random.randint(1, byte_lanes * 16)
             test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
             test_frame = AxiStreamFrame(test_data)
             test_frame.tid = cur_id | (p << src_shift)
@@ -279,7 +285,7 @@ def cycle_pause():
 def size_list():
     data_width = max(len(cocotb.top.s00_axis_tdata), len(cocotb.top.m00_axis_tdata))
     byte_width = data_width // 8
-    return list(range(1, byte_width*4+1))+[512]+[1]*64
+    return list(range(1, byte_width * 4 + 1)) + [512] + [1] * 64
 
 
 def incrementing_payload(length):
@@ -287,7 +293,6 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     s_count = len(cocotb.top.axis_ram_switch_inst.s_axis_tvalid)
     m_count = len(cocotb.top.axis_ram_switch_inst.m_axis_tvalid)
 
@@ -323,8 +328,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -334,7 +339,7 @@ if tests_dir not in sys.path:
 def process_f_files(files):
     lst = {}
     for f in files:
-        if f[-2:].lower() == '.f':
+        if f[-2:].lower() == ".f":
             with open(f) as fp:
                 names = fp.read().split()
             for sub in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
@@ -359,8 +364,7 @@ def test_axis_ram_switch(request, s_count, m_count, s_data_width, m_data_width):
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{s_count}", f"{m_count}"],
-            cwd=results_dir
+            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{s_count}", f"{m_count}"], cwd=results_dir
         ).wait()
 
     verilog_sources = [
@@ -372,38 +376,37 @@ def test_axis_ram_switch(request, s_count, m_count, s_data_width, m_data_width):
 
     parameters = {}
 
-    parameters['FIFO_DEPTH'] = 4096
-    parameters['CMD_FIFO_DEPTH'] = 32
-    parameters['SPEEDUP'] = 0
-    parameters['S_DATA_WIDTH'] = s_data_width
-    parameters['S_KEEP_ENABLE'] = int(parameters['S_DATA_WIDTH'] > 8)
-    parameters['S_KEEP_WIDTH'] = (parameters['S_DATA_WIDTH'] + 7) // 8
-    parameters['M_DATA_WIDTH'] = m_data_width
-    parameters['M_KEEP_ENABLE'] = int(parameters['M_DATA_WIDTH'] > 8)
-    parameters['M_KEEP_WIDTH'] = (parameters['M_DATA_WIDTH'] + 7) // 8
-    parameters['ID_ENABLE'] = 1
-    parameters['S_ID_WIDTH'] = 16
-    parameters['M_ID_WIDTH'] = parameters['S_ID_WIDTH'] + (s_count-1).bit_length()
-    parameters['M_DEST_WIDTH'] = 8
-    parameters['S_DEST_WIDTH'] = parameters['M_DEST_WIDTH'] + (m_count-1).bit_length()
-    parameters['USER_ENABLE'] = 1
-    parameters['USER_WIDTH'] = 1
-    parameters['USER_BAD_FRAME_VALUE'] = 1
-    parameters['USER_BAD_FRAME_MASK'] = 1
-    parameters['DROP_BAD_FRAME'] = 0
-    parameters['DROP_WHEN_FULL'] = 0
-    parameters['UPDATE_TID'] = 1
-    parameters['ARB_TYPE_ROUND_ROBIN'] = 1
-    parameters['ARB_LSB_HIGH_PRIORITY'] = 1
-    parameters['RAM_PIPELINE'] = 2
+    parameters["FIFO_DEPTH"] = 4096
+    parameters["CMD_FIFO_DEPTH"] = 32
+    parameters["SPEEDUP"] = 0
+    parameters["S_DATA_WIDTH"] = s_data_width
+    parameters["S_KEEP_ENABLE"] = int(parameters["S_DATA_WIDTH"] > 8)
+    parameters["S_KEEP_WIDTH"] = (parameters["S_DATA_WIDTH"] + 7) // 8
+    parameters["M_DATA_WIDTH"] = m_data_width
+    parameters["M_KEEP_ENABLE"] = int(parameters["M_DATA_WIDTH"] > 8)
+    parameters["M_KEEP_WIDTH"] = (parameters["M_DATA_WIDTH"] + 7) // 8
+    parameters["ID_ENABLE"] = 1
+    parameters["S_ID_WIDTH"] = 16
+    parameters["M_ID_WIDTH"] = parameters["S_ID_WIDTH"] + (s_count - 1).bit_length()
+    parameters["M_DEST_WIDTH"] = 8
+    parameters["S_DEST_WIDTH"] = parameters["M_DEST_WIDTH"] + (m_count - 1).bit_length()
+    parameters["USER_ENABLE"] = 1
+    parameters["USER_WIDTH"] = 1
+    parameters["USER_BAD_FRAME_VALUE"] = 1
+    parameters["USER_BAD_FRAME_MASK"] = 1
+    parameters["DROP_BAD_FRAME"] = 0
+    parameters["DROP_WHEN_FULL"] = 0
+    parameters["UPDATE_TID"] = 1
+    parameters["ARB_TYPE_ROUND_ROBIN"] = 1
+    parameters["ARB_LSB_HIGH_PRIORITY"] = 1
+    parameters["RAM_PIPELINE"] = 2
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    extra_env['S_COUNT'] = str(s_count)
-    extra_env['M_COUNT'] = str(m_count)
+    extra_env["S_COUNT"] = str(s_count)
+    extra_env["M_COUNT"] = str(m_count)
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

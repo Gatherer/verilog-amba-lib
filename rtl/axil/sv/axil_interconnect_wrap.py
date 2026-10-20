@@ -11,10 +11,10 @@ from jinja2 import Template
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.strip())
-    parser.add_argument('-p', '--ports',   type=int, default=[4], nargs='+', help="number of ports")
-    parser.add_argument('-r', '--regions', type=int, default=1, help="number of regions per master interface")
-    parser.add_argument('-n', '--name',    type=str, help="module name")
-    parser.add_argument('-o', '--output',  type=str, help="output file name")
+    parser.add_argument("-p", "--ports", type=int, default=[4], nargs="+", help="number of ports")
+    parser.add_argument("-r", "--regions", type=int, default=1, help="number of regions per master interface")
+    parser.add_argument("-n", "--name", type=str, help="module name")
+    parser.add_argument("-o", "--output", type=str, help="output file name")
 
     args = parser.parse_args()
 
@@ -257,13 +257,8 @@ endmodule
 
     print(f"Writing file '{output}'...")
 
-    with open(output, 'w') as f:
-        f.write(t.render(
-            m=m,
-            n=n,
-            r=regions,
-            name=name
-        ))
+    with open(output, "w") as f:
+        f.write(t.render(m=m, n=n, r=regions, name=name))
         f.flush()
 
     print("Done")
