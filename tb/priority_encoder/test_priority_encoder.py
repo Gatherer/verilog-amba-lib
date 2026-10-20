@@ -129,7 +129,7 @@ async def run_stress_test(dut):
 
     await tb.init()
 
-    for k in range(1024):
+    for _ in range(1024):
         await tb.check(random.getrandbits(tb.width))
 
 

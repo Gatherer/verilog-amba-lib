@@ -145,7 +145,7 @@ async def run_test_init_sink_pause(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.clk)
 
     tb.sink.pause = False
@@ -173,14 +173,14 @@ async def run_test_init_sink_pause_reset(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.clk)
 
     await tb.reset()
 
     tb.sink.pause = False
 
-    for k in range(64):
+    for _ in range(64):
         await RisingEdge(dut.clk)
 
     assert tb.sink.empty()
@@ -201,7 +201,7 @@ async def run_test_overflow(dut):
     test_frame = AxiStreamFrame(test_data)
     await tb.source.send(test_frame)
 
-    for k in range(2048):
+    for _ in range(2048):
         await RisingEdge(dut.clk)
 
     tb.sink.pause = False
@@ -233,7 +233,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     test_frames = []
 
-    for k in range(128):
+    for _ in range(128):
         length = random.randint(1, byte_lanes*16)
         test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
         test_frame = AxiStreamFrame(test_data)

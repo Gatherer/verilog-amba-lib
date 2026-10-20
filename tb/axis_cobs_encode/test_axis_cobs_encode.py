@@ -100,7 +100,7 @@ def cobs_decode(block):
 
 def prbs31(state=0x7fffffff):
     while True:
-        for i in range(8):
+        for _ in range(8):
             if bool(state & 0x08000000) ^ bool(state & 0x40000000):
                 state = ((state & 0x3fffffff) << 1) | 1
             else:

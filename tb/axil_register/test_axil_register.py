@@ -148,7 +148,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     tb.set_backpressure_generator(backpressure_inserter)
 
     async def worker(master, offset, aperture, count=16):
-        for k in range(count):
+        for _ in range(count):
             length = random.randint(1, min(32, aperture))
             addr = offset+random.randint(0, aperture-length)
             test_data = bytearray([x % 256 for x in range(length)])
