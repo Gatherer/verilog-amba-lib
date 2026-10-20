@@ -109,7 +109,7 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
 
     dut.enable.value = 1
 
-    for length in list(range(1, byte_lanes*4+1))+[128]:
+    for length in [*list(range(1, byte_lanes * 4 + 1)), 128]:
         for offset in list(range(0, byte_lanes*2, step_size))+list(range(4096-byte_lanes*2, 4096, step_size)):
             for diff in [-8, -2, -1, 0, 1, 2, 8]:
                 if length+diff < 1:

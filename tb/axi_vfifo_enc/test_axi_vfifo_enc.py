@@ -43,8 +43,8 @@ from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSource
 
 class BaseBus(Bus):
 
-    _signals = ["data"]
-    _optional_signals = []
+    _signals = ("data",)
+    _optional_signals = ()
 
     def __init__(self, entity=None, prefix=None, **kwargs):
         super().__init__(entity, prefix, self._signals, optional_signals=self._optional_signals, **kwargs)
@@ -59,7 +59,7 @@ class BaseBus(Bus):
 
 
 class DataBus(BaseBus):
-    _signals = ["data", "valid", "ready"]
+    _signals = ("data", "valid", "ready")
 
 
 class DataSink:
