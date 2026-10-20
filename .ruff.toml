@@ -15,9 +15,12 @@ select = [
     "I",                    # isort: import order
     "UP",                   # pyupgrade: modern Python syntax
     "B",                    # bugbear: likely bugs
+    "C4",                   # comprehensions: simpler list/dict/set code
+    "SIM",                  # simplify: shorter if/loop/bool code
 ]
 ignore = [
     "E501",                 # line too long, enable after formatter decision
+    "SIM108",               # ternary one-liners, if/else block is more readable
 ]
 
 [lint.per-file-ignores]
