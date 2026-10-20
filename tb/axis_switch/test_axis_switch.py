@@ -248,7 +248,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     for lst in test_frames:
         while any(lst):
-            rx_frame = await tb.sink[[x for x in lst if x][0][0].tdest].recv()
+            rx_frame = await tb.sink[next(x for x in lst if x)[0].tdest].recv()
 
             test_frame = None
 

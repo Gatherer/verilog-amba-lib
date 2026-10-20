@@ -100,7 +100,7 @@ async def run_test_write(dut, port=0, data_in=None, idle_inserter=None, backpres
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in list(range(1, byte_lanes*2))+[1024]:
+    for length in [*list(range(1, byte_lanes * 2)), 1024]:
         for offset in list(range(byte_lanes, byte_lanes*2))+list(range(4096-byte_lanes, 4096)):
             tb.log.info("length %d, offset %d, size %d", length, offset, size)
             addr = offset+0x1000
@@ -134,7 +134,7 @@ async def run_test_read(dut, port=0, data_in=None, idle_inserter=None, backpress
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in list(range(1, byte_lanes*2))+[1024]:
+    for length in [*list(range(1, byte_lanes * 2)), 1024]:
         for offset in list(range(byte_lanes, byte_lanes*2))+list(range(4096-byte_lanes, 4096)):
             tb.log.info("length %d, offset %d, size %d", length, offset, size)
             addr = offset+0x1000
@@ -228,7 +228,7 @@ if getattr(cocotb, "SIM_NAME", None):
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
-        ("size", [None]+list(range(max_burst_size))),
+        ("size", [None, *list(range(max_burst_size))]),
         ("port", [0, 1]),
     )
 

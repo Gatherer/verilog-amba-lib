@@ -107,7 +107,7 @@ async def run_test(dut, data_in=None, idle_inserter=None, backpressure_inserter=
 
     dut.enable.value = 1
 
-    for length in list(range(1, byte_lanes*4+1))+[128]:
+    for length in [*list(range(1, byte_lanes * 4 + 1)), 128]:
         for read_offset in list(range(8, 8+byte_lanes*2, step_size))+list(range(4096-byte_lanes*2, 4096, step_size)):
             for write_offset in list(range(8, 8+byte_lanes*2, step_size))+list(range(4096-byte_lanes*2, 4096, step_size)):
                 tb.log.info("length %d, read_offset %d, write_offset %d", length, read_offset, write_offset)

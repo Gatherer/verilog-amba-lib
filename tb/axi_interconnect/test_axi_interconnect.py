@@ -103,7 +103,7 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in list(range(1, byte_lanes*2))+[1024]:
+    for length in [*list(range(1, byte_lanes * 2)), 1024]:
         for offset in list(range(byte_lanes, byte_lanes*2))+list(range(4096-byte_lanes, 4096)):
             tb.log.info("length %d, offset %d, size %d", length, offset, size)
             ram_addr = offset+0x1000
@@ -139,7 +139,7 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in list(range(1, byte_lanes*2))+[1024]:
+    for length in [*list(range(1, byte_lanes * 2)), 1024]:
         for offset in list(range(byte_lanes, byte_lanes*2))+list(range(4096-byte_lanes, 4096)):
             tb.log.info("length %d, offset %d, size %d", length, offset, size)
             ram_addr = offset+0x1000

@@ -195,7 +195,7 @@ def nonzero_incrementing_payload(length):
 
 
 def nonzero_incrementing_payload_zero_framed(length):
-    return bytearray([0]+list(itertools.islice(itertools.cycle(range(1, 256)), length))+[0])
+    return bytearray([0, *list(itertools.islice(itertools.cycle(range(1, 256)), length)), 0])
 
 
 def prbs_payload(length):
