@@ -91,7 +91,6 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     src_mask = 2**src_width-1 if src_width else 0
     src_shift = id_width-src_width
     max_count = 2**src_shift
-    count_mask = max_count-1
 
     cur_id = 1
 
@@ -162,7 +161,6 @@ async def run_arb_test(dut):
     src_mask = 2**src_width-1 if src_width else 0
     src_shift = id_width-src_width
     max_count = 2**src_shift
-    count_mask = max_count-1
 
     cur_id = 1
 
@@ -225,7 +223,6 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     src_mask = 2**src_width-1 if src_width else 0
     src_shift = id_width-src_width
     max_count = 2**src_shift
-    count_mask = max_count-1
 
     cur_id = 1
 
@@ -338,8 +335,8 @@ def process_f_files(files):
     for f in files:
         if f[-2:].lower() == '.f':
             with open(f, 'r') as fp:
-                l = fp.read().split()
-            lst.extend(process_f_files([os.path.join(os.path.dirname(f), x) for x in l]))
+                names = fp.read().split()
+            lst.extend(process_f_files([os.path.join(os.path.dirname(f), x) for x in names]))
         else:
             lst.append(f)
     return list(dict.fromkeys(lst))

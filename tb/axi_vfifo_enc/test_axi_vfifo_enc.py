@@ -266,7 +266,6 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False, id
     dest_width = len(tb.source.bus.tdest)
     user_width = len(tb.source.bus.tuser)
 
-    seg_cnt = tb.sink.seg_count
     seg_byte_lanes = tb.sink.seg_byte_lanes
 
     meta_id_offset = 0

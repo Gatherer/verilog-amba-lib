@@ -226,8 +226,8 @@ def process_f_files(files):
     for f in files:
         if f[-2:].lower() == '.f':
             with open(f, 'r') as fp:
-                l = fp.read().split()
-            for f in process_f_files([os.path.join(os.path.dirname(f), x) for x in l]):
+                names = fp.read().split()
+            for f in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
                 lst[os.path.basename(f)] = f
         else:
             lst[os.path.basename(f)] = f

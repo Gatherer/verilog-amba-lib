@@ -88,8 +88,6 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     tb = TB(dut)
 
-    data_width = len(tb.source.bus.tkeep)
-    byte_width = data_width // 8
     id_count = 2**len(tb.source.bus.tid)
 
     cur_id = 1
@@ -299,8 +297,8 @@ def process_f_files(files):
     for f in files:
         if f[-2:].lower() == '.f':
             with open(f, 'r') as fp:
-                l = fp.read().split()
-            for f in process_f_files([os.path.join(os.path.dirname(f), x) for x in l]):
+                names = fp.read().split()
+            for f in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
                 lst[os.path.basename(f)] = f
         else:
             lst[os.path.basename(f)] = f
