@@ -19,6 +19,9 @@ select = [
     "SIM",                  # simplify: shorter if/loop/bool code
     "PT",                   # pytest-style: pytest conventions
     "RUF",                  # ruff-specific rules
+    "N",                    # pep8-naming: naming conventions
+    "PLE", "PLW",           # pylint: errors, warnings
+    "PLR1722",              # pylint: sys.exit() instead of exit()
 ]
 ignore = [
     "E501",                 # line too long, enable after formatter decision

@@ -457,8 +457,8 @@ def process_f_files(files):
         if f[-2:].lower() == '.f':
             with open(f) as fp:
                 names = fp.read().split()
-            for f in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
-                lst[os.path.basename(f)] = f
+            for sub in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
+                lst[os.path.basename(sub)] = sub
         else:
             lst[os.path.basename(f)] = f
     return list(lst.values())
