@@ -19,7 +19,7 @@ def main():
 
     try:
         generate(**args.__dict__)
-    except IOError as ex:
+    except OSError as ex:
         print(ex)
         exit(1)
 
@@ -33,14 +33,14 @@ def generate(ports=4, regions=1, name=None, output=None):
         m, n = ports
 
     if name is None:
-        name = "axil_interconnect_wrap_{0}x{1}".format(m, n)
+        name = f"axil_interconnect_wrap_{m}x{n}"
 
     if output is None:
         output = name + ".sv"
 
-    print("Generating {0}x{1} port AXI lite interconnect wrapper {2}...".format(m, n, name))
+    print(f"Generating {m}x{n} port AXI lite interconnect wrapper {name}...")
 
-    t = Template(u"""/*
+    t = Template("""/*
 
 Copyright (c) 2020 Alex Forencich
 Copyright (c) 2026 Thomas Glatte

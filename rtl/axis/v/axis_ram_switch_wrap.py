@@ -18,7 +18,7 @@ def main():
 
     try:
         generate(**args.__dict__)
-    except IOError as ex:
+    except OSError as ex:
         print(ex)
         exit(1)
 
@@ -32,17 +32,17 @@ def generate(ports=4, name=None, output=None):
         m, n = ports
 
     if name is None:
-        name = "axis_ram_switch_wrap_{0}x{1}".format(m, n)
+        name = f"axis_ram_switch_wrap_{m}x{n}"
 
     if output is None:
         output = name + ".v"
 
-    print("Generating {0}x{1} port AXI stream RAM switch wrapper {2}...".format(m, n, name))
+    print(f"Generating {m}x{n} port AXI stream RAM switch wrapper {name}...")
 
     cm = (m-1).bit_length()
     cn = (n-1).bit_length()
 
-    t = Template(u"""/*
+    t = Template("""/*
 
 Copyright (c) 2018-2021 Alex Forencich
 

@@ -46,7 +46,7 @@ StatusBus, StatusTransaction, StatusSource, StatusSink, StatusMonitor = define_s
 )
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 

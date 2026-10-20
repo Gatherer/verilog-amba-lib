@@ -42,7 +42,7 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 
 
-class TB(object):
+class TB:
     def __init__(self, dut):
         self.dut = dut
 
@@ -334,7 +334,7 @@ def process_f_files(files):
     lst = []
     for f in files:
         if f[-2:].lower() == '.f':
-            with open(f, 'r') as fp:
+            with open(f) as fp:
                 names = fp.read().split()
             lst.extend(process_f_files([os.path.join(os.path.dirname(f), x) for x in names]))
         else:
