@@ -113,10 +113,7 @@ class DataSink:
         self.set_pause_generator(None)
 
     def empty(self):
-        for queue in self.queue:
-            if not queue.empty():
-                return False
-        return True
+        return all(queue.empty() for queue in self.queue)
 
     def clear(self):
         for queue in self.queue:

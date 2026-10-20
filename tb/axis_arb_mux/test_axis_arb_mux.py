@@ -229,7 +229,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    test_frames = [list() for x in tb.source]
+    test_frames = [[] for _ in tb.source]
 
     for p in range(len(tb.source)):
         for _ in range(128):
