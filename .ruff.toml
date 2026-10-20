@@ -17,6 +17,7 @@ select = [
     "B",                    # bugbear: likely bugs
     "C4",                   # comprehensions: simpler list/dict/set code
     "SIM",                  # simplify: shorter if/loop/bool code
+    "PT",                   # pytest-style: pytest conventions
 ]
 ignore = [
     "E501",                 # line too long, enable after formatter decision

@@ -186,7 +186,9 @@ async def run_test_all(dut):
                 f"round robin grant sequence {[hex(g) for g in grants]}"
     elif release_request:
         # highest priority port wins whenever it is requesting
-        assert set(grants[0::2]) == {first} and set(grants[1::2]) == {second}, \
+        assert set(grants[0::2]) == {first}, \
+            f"fixed priority grant sequence {[hex(g) for g in grants]}"
+        assert set(grants[1::2]) == {second}, \
             f"fixed priority grant sequence {[hex(g) for g in grants]}"
     else:
         # highest priority port always wins
