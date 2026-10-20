@@ -85,19 +85,19 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await tb.axil_master.write(addr-4, b'\xaa'*(length+8))
+            await tb.axil_master.write(addr - 4, b"\xaa" * (length + 8))
 
             await tb.axil_master.write(addr, test_data)
 
-            data = await tb.axil_master.read(addr-1, length+2)
+            data = await tb.axil_master.read(addr - 1, length + 2)
 
-            assert data.data == b'\xaa'+test_data+b'\xaa'
+            assert data.data == b"\xaa" + test_data + b"\xaa"
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -114,10 +114,10 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
             await tb.axil_master.write(addr, test_data)
@@ -142,14 +142,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     async def worker(master, offset, aperture, count=16):
         for _ in range(count):
             length = random.randint(1, min(32, aperture))
-            addr = offset+random.randint(0, aperture-length)
+            addr = offset + random.randint(0, aperture - length)
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             await master.write(addr, test_data)
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             data = await master.read(addr, length)
             assert data.data == test_data
@@ -157,7 +157,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     workers = []
 
     for k in range(16):
-        workers.append(cocotb.start_soon(worker(tb.axil_master, k*0x1000, 0x1000, count=16)))
+        workers.append(cocotb.start_soon(worker(tb.axil_master, k * 0x1000, 0x1000, count=16)))
 
     while workers:
         await workers.pop(0)
@@ -171,7 +171,6 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
@@ -186,8 +185,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axil", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -206,15 +205,14 @@ def test_axil_ram(request, data_width):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['ADDR_WIDTH'] = 16
-    parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
-    parameters['PIPELINE_OUTPUT'] = 0
+    parameters["DATA_WIDTH"] = data_width
+    parameters["ADDR_WIDTH"] = 16
+    parameters["STRB_WIDTH"] = parameters["DATA_WIDTH"] // 8
+    parameters["PIPELINE_OUTPUT"] = 0
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

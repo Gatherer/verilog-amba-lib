@@ -88,24 +88,24 @@ def cobs_decode(block):
     while i < len(block):
         code = block[i]
         i += 1
-        if i+code-1 > len(block):
+        if i + code - 1 > len(block):
             return None
-        dec.extend(block[i:i+code-1])
-        i += code-1
+        dec.extend(block[i : i + code - 1])
+        i += code - 1
         if code < 255 and i < len(block):
             dec.append(0)
 
     return bytes(dec)
 
 
-def prbs31(state=0x7fffffff):
+def prbs31(state=0x7FFFFFFF):
     while True:
         for _ in range(8):
             if bool(state & 0x08000000) ^ bool(state & 0x40000000):
-                state = ((state & 0x3fffffff) << 1) | 1
+                state = ((state & 0x3FFFFFFF) << 1) | 1
             else:
-                state = (state & 0x3fffffff) << 1
-        yield state & 0xff
+                state = (state & 0x3FFFFFFF) << 1
+        yield state & 0xFF
 
 
 class TB:
@@ -161,7 +161,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
         rx_frame = await tb.sink.recv()
 
         if append_zero:
-            assert rx_frame.tdata == cobs_encode(test_data)+b'\x00'
+            assert rx_frame.tdata == cobs_encode(test_data) + b"\x00"
             assert cobs_decode(rx_frame.tdata[:-1]) == test_data
         else:
             assert rx_frame.tdata == cobs_encode(test_data)
@@ -179,7 +179,7 @@ def cycle_pause():
 
 
 def size_list():
-    return list(range(1, 33))+list(range(253, 259))+[512]+[1]*64
+    return list(range(1, 33)) + list(range(253, 259)) + [512] + [1] * 64
 
 
 def zero_payload(length):
@@ -204,10 +204,12 @@ def prbs_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
-        ("payload_data", [zero_payload, nonzero_incrementing_payload, nonzero_incrementing_payload_zero_framed, prbs_payload]),
+        (
+            "payload_data",
+            [zero_payload, nonzero_incrementing_payload, nonzero_incrementing_payload_zero_framed, prbs_payload],
+        ),
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
     )
@@ -218,8 +220,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axis', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -229,7 +231,7 @@ if tests_dir not in sys.path:
 def process_f_files(files):
     lst = {}
     for f in files:
-        if f[-2:].lower() == '.f':
+        if f[-2:].lower() == ".f":
             with open(f) as fp:
                 names = fp.read().split()
             for sub in process_f_files([os.path.join(os.path.dirname(f), x) for x in names]):
@@ -253,12 +255,11 @@ def test_axis_cobs_encode(request, append_zero):
 
     parameters = {}
 
-    parameters['APPEND_ZERO'] = append_zero
+    parameters["APPEND_ZERO"] = append_zero
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

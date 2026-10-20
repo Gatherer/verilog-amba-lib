@@ -47,38 +47,41 @@ class TB:
 
     def model(self, value):
         # expected (valid, encoded, unencoded) for given input
-        enc_width = (self.width-1).bit_length()
+        enc_width = (self.width - 1).bit_length()
 
         if value == 0:
             # current RTL behavior: LSB mode selects upper half on every level
             if self.lsb_high_priority:
-                encoded = 2**enc_width-1
+                encoded = 2**enc_width - 1
             else:
                 encoded = 0
-            return 0, encoded, (1 << encoded) & (2**self.width-1)
+            return 0, encoded, (1 << encoded) & (2**self.width - 1)
 
         if self.lsb_high_priority:
-            encoded = (value & -value).bit_length()-1
+            encoded = (value & -value).bit_length() - 1
         else:
-            encoded = value.bit_length()-1
+            encoded = value.bit_length() - 1
         return 1, encoded, 1 << encoded
 
     async def init(self):
         self.dut.input_unencoded.value = 0
-        await Timer(10, unit='ns')
+        await Timer(10, unit="ns")
 
     async def check(self, value):
         self.dut.input_unencoded.value = value
-        await Timer(10, unit='ns')
+        await Timer(10, unit="ns")
 
         valid, encoded, unencoded = self.model(value)
 
-        assert int(self.dut.output_valid.value) == valid, \
+        assert int(self.dut.output_valid.value) == valid, (
             f"input {value:#x}: output_valid {int(self.dut.output_valid.value)} != {valid}"
-        assert int(self.dut.output_encoded.value) == encoded, \
+        )
+        assert int(self.dut.output_encoded.value) == encoded, (
             f"input {value:#x}: output_encoded {int(self.dut.output_encoded.value)} != {encoded}"
-        assert int(self.dut.output_unencoded.value) == unencoded, \
+        )
+        assert int(self.dut.output_unencoded.value) == unencoded, (
             f"input {value:#x}: output_unencoded {int(self.dut.output_unencoded.value):#x} != {unencoded:#x}"
+        )
 
 
 async def run_test_zero(dut):
@@ -118,9 +121,9 @@ async def run_test_ones(dut):
     await tb.init()
 
     # contiguous ones from either end
-    for i in range(1, tb.width+1):
-        await tb.check(2**i-1)
-        await tb.check((2**tb.width-1) ^ (2**(tb.width-i)-1))
+    for i in range(1, tb.width + 1):
+        await tb.check(2**i - 1)
+        await tb.check((2**tb.width - 1) ^ (2 ** (tb.width - i) - 1))
 
 
 async def run_stress_test(dut):
@@ -134,7 +137,6 @@ async def run_stress_test(dut):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     run_test_zero = cocotb.test(run_test_zero)
     run_test_one_bit = cocotb.test(run_test_one_bit)
     run_test_two_bits = cocotb.test(run_test_two_bits)
@@ -145,8 +147,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "common"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -174,13 +176,12 @@ def test_priority_encoder(request, hdl, width, lsb_high_priority):
 
     parameters = {}
 
-    parameters['WIDTH'] = width
-    parameters['LSB_HIGH_PRIORITY'] = lsb_high_priority
+    parameters["WIDTH"] = width
+    parameters["LSB_HIGH_PRIORITY"] = lsb_high_priority
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

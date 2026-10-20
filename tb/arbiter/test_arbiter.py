@@ -62,12 +62,12 @@ class TB:
     def select(self, value):
         # index of the highest priority bit
         if self.lsb_high_priority:
-            return (value & -value).bit_length()-1
-        return value.bit_length()-1
+            return (value & -value).bit_length() - 1
+        return value.bit_length() - 1
 
     def model(self, request, acknowledge):
         # advance reference model by one clock cycle
-        ones = 2**self.ports-1
+        ones = 2**self.ports - 1
 
         if self.block and not self.block_ack and self.grant & request:
             # granted request still asserted; hold it
@@ -94,9 +94,9 @@ class TB:
 
         if self.round_robin:
             if self.lsb_high_priority:
-                self.mask = (ones << (index+1)) & ones
+                self.mask = (ones << (index + 1)) & ones
             else:
-                self.mask = ones >> (self.ports-index)
+                self.mask = ones >> (self.ports - index)
 
     async def init(self):
         self.dut.rst.value = 1
@@ -114,13 +114,16 @@ class TB:
     def check(self, request, acknowledge):
         state = f"request {request:#x} acknowledge {acknowledge:#x}"
 
-        assert int(self.dut.grant_valid.value) == self.grant_valid, \
+        assert int(self.dut.grant_valid.value) == self.grant_valid, (
             f"{state}: grant_valid {int(self.dut.grant_valid.value)} != {self.grant_valid}"
-        assert int(self.dut.grant.value) == self.grant, \
+        )
+        assert int(self.dut.grant.value) == self.grant, (
             f"{state}: grant {int(self.dut.grant.value):#x} != {self.grant:#x}"
+        )
         if self.grant_valid:
-            assert int(self.dut.grant_encoded.value) == self.grant_encoded, \
+            assert int(self.dut.grant_encoded.value) == self.grant_encoded, (
                 f"{state}: grant_encoded {int(self.dut.grant_encoded.value)} != {self.grant_encoded}"
+            )
 
     async def cycle(self, request, acknowledge=0):
         # inputs change on falling edge, outputs are checked one cycle later
@@ -167,12 +170,12 @@ async def run_test_all(dut):
 
     # all ports requesting, granted port acknowledges every cycle
     # (blocking on request: granted port releases by dropping its request)
-    ones = 2**tb.ports-1
+    ones = 2**tb.ports - 1
     release_request = tb.block and not tb.block_ack
     grants = []
     grant = 0
 
-    for _ in range(3*tb.ports):
+    for _ in range(3 * tb.ports):
         grant = await tb.cycle(ones & ~grant if release_request else ones, grant)
         grants.append(grant)
 
@@ -182,18 +185,16 @@ async def run_test_all(dut):
     if tb.round_robin:
         # every port is granted once per round
         for k in range(0, len(grants), tb.ports):
-            assert sorted(grants[k:k+tb.ports]) == [1 << i for i in range(tb.ports)], \
+            assert sorted(grants[k : k + tb.ports]) == [1 << i for i in range(tb.ports)], (
                 f"round robin grant sequence {[hex(g) for g in grants]}"
+            )
     elif release_request:
         # highest priority port wins whenever it is requesting
-        assert set(grants[0::2]) == {first}, \
-            f"fixed priority grant sequence {[hex(g) for g in grants]}"
-        assert set(grants[1::2]) == {second}, \
-            f"fixed priority grant sequence {[hex(g) for g in grants]}"
+        assert set(grants[0::2]) == {first}, f"fixed priority grant sequence {[hex(g) for g in grants]}"
+        assert set(grants[1::2]) == {second}, f"fixed priority grant sequence {[hex(g) for g in grants]}"
     else:
         # highest priority port always wins
-        assert set(grants) == {first}, \
-            f"fixed priority grant sequence {[hex(g) for g in grants]}"
+        assert set(grants) == {first}, f"fixed priority grant sequence {[hex(g) for g in grants]}"
 
 
 async def run_test_hold(dut):
@@ -203,7 +204,7 @@ async def run_test_hold(dut):
     await tb.init()
 
     # granted port keeps requesting without acknowledge, others compete
-    ones = 2**tb.ports-1
+    ones = 2**tb.ports - 1
 
     for i in range(tb.ports):
         await tb.cycle(1 << i)
@@ -232,7 +233,6 @@ async def run_stress_test(dut):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     run_test_idle = cocotb.test(run_test_idle)
     run_test_single = cocotb.test(run_test_single)
     run_test_all = cocotb.test(run_test_all)
@@ -243,8 +243,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'common'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "common"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -275,16 +275,15 @@ def test_arbiter(request, hdl, ports, arb_type_round_robin, arb_block, arb_block
 
     parameters = {}
 
-    parameters['PORTS'] = ports
-    parameters['ARB_TYPE_ROUND_ROBIN'] = arb_type_round_robin
-    parameters['ARB_BLOCK'] = arb_block
-    parameters['ARB_BLOCK_ACK'] = arb_block_ack
-    parameters['ARB_LSB_HIGH_PRIORITY'] = arb_lsb_high_priority
+    parameters["PORTS"] = ports
+    parameters["ARB_TYPE_ROUND_ROBIN"] = arb_type_round_robin
+    parameters["ARB_BLOCK"] = arb_block
+    parameters["ARB_BLOCK_ACK"] = arb_block_ack
+    parameters["ARB_LSB_HIGH_PRIORITY"] = arb_lsb_high_priority
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

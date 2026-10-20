@@ -91,21 +91,21 @@ async def run_test_write(dut, data_in=None, idle_inserter=None, backpressure_ins
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
-            tb.axil_ram.write(addr-128, b'\xaa'*(length+256))
+            tb.axil_ram.write(addr - 128, b"\xaa" * (length + 256))
 
             await tb.axil_master.write(addr, test_data)
 
-            tb.log.debug("%s", tb.axil_ram.hexdump_str((addr & ~0xf)-16, (((addr & 0xf)+length-1) & ~0xf)+48))
+            tb.log.debug("%s", tb.axil_ram.hexdump_str((addr & ~0xF) - 16, (((addr & 0xF) + length - 1) & ~0xF) + 48))
 
             assert tb.axil_ram.read(addr, length) == test_data
-            assert tb.axil_ram.read(addr-1, 1) == b'\xaa'
-            assert tb.axil_ram.read(addr+length, 1) == b'\xaa'
+            assert tb.axil_ram.read(addr - 1, 1) == b"\xaa"
+            assert tb.axil_ram.read(addr + length, 1) == b"\xaa"
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -122,10 +122,10 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    for length in range(1, byte_lanes*2):
+    for length in range(1, byte_lanes * 2):
         for offset in range(byte_lanes):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
             tb.axil_ram.write(addr, test_data)
@@ -150,14 +150,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     async def worker(master, offset, aperture, count=16):
         for _ in range(count):
             length = random.randint(1, min(32, aperture))
-            addr = offset+random.randint(0, aperture-length)
+            addr = offset + random.randint(0, aperture - length)
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             await master.write(addr, test_data)
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             data = await master.read(addr, length)
             assert data.data == test_data
@@ -165,7 +165,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     workers = []
 
     for k in range(16):
-        workers.append(cocotb.start_soon(worker(tb.axil_master, k*0x1000, 0x1000, count=16)))
+        workers.append(cocotb.start_soon(worker(tb.axil_master, k * 0x1000, 0x1000, count=16)))
 
     while workers:
         await workers.pop(0)
@@ -179,7 +179,6 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
@@ -194,8 +193,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axil', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axil", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -217,16 +216,15 @@ def test_axil_adapter(request, s_data_width, m_data_width):
 
     parameters = {}
 
-    parameters['ADDR_WIDTH'] = 32
-    parameters['S_DATA_WIDTH'] = s_data_width
-    parameters['S_STRB_WIDTH'] = parameters['S_DATA_WIDTH'] // 8
-    parameters['M_DATA_WIDTH'] = m_data_width
-    parameters['M_STRB_WIDTH'] = parameters['M_DATA_WIDTH'] // 8
+    parameters["ADDR_WIDTH"] = 32
+    parameters["S_DATA_WIDTH"] = s_data_width
+    parameters["S_STRB_WIDTH"] = parameters["S_DATA_WIDTH"] // 8
+    parameters["M_DATA_WIDTH"] = m_data_width
+    parameters["M_STRB_WIDTH"] = parameters["M_DATA_WIDTH"] // 8
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

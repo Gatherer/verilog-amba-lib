@@ -39,14 +39,12 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiRamRead, AxiReadBus, AxiStreamBus, AxiStreamSink
 from cocotbext.axi.stream import define_stream
 
-DescBus, DescTransaction, DescSource, DescSink, DescMonitor = define_stream("Desc",
-    signals=["addr", "len", "tag", "valid", "ready"],
-    optional_signals=["id", "dest", "user"]
+DescBus, DescTransaction, DescSource, DescSink, DescMonitor = define_stream(
+    "Desc", signals=["addr", "len", "tag", "valid", "ready"], optional_signals=["id", "dest", "user"]
 )
 
-DescStatusBus, DescStatusTransaction, DescStatusSource, DescStatusSink, DescStatusMonitor = define_stream("DescStatus",
-    signals=["tag", "error", "valid"],
-    optional_signals=["len", "id", "dest", "user"]
+DescStatusBus, DescStatusTransaction, DescStatusSource, DescStatusSink, DescStatusMonitor = define_stream(
+    "DescStatus", signals=["tag", "error", "valid"], optional_signals=["len", "id", "dest", "user"]
 )
 
 
@@ -61,7 +59,9 @@ class TB:
 
         # read interface
         self.read_desc_source = DescSource(DescBus.from_prefix(dut, "s_axis_read_desc"), dut.clk, dut.rst)
-        self.read_desc_status_sink = DescStatusSink(DescStatusBus.from_prefix(dut, "m_axis_read_desc_status"), dut.clk, dut.rst)
+        self.read_desc_status_sink = DescStatusSink(
+            DescStatusBus.from_prefix(dut, "m_axis_read_desc_status"), dut.clk, dut.rst
+        )
         self.read_data_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis_read_data"), dut.clk, dut.rst)
 
         # AXI interface
@@ -97,7 +97,7 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
 
     byte_lanes = tb.axi_ram.byte_lanes
     step_size = 1 if int(os.getenv("PARAM_ENABLE_UNALIGNED")) else byte_lanes
-    tag_count = 2**len(tb.read_desc_source.bus.tag)
+    tag_count = 2 ** len(tb.read_desc_source.bus.tag)
 
     cur_tag = 1
 
@@ -109,15 +109,15 @@ async def run_test_read(dut, data_in=None, idle_inserter=None, backpressure_inse
     dut.enable.value = 1
 
     for length in [*list(range(1, byte_lanes * 4 + 1)), 128]:
-        for offset in list(range(0, byte_lanes*2, step_size))+list(range(4096-byte_lanes*2, 4096, step_size)):
+        for offset in list(range(0, byte_lanes * 2, step_size)) + list(range(4096 - byte_lanes * 2, 4096, step_size)):
             tb.log.info("length %d, offset %d", length, offset)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
-            tb.axi_ram.write(addr-128, b'\xaa'*(len(test_data)+256))
+            tb.axi_ram.write(addr - 128, b"\xaa" * (len(test_data) + 256))
             tb.axi_ram.write(addr, test_data)
 
-            tb.log.debug("%s", tb.axi_ram.hexdump_str((addr & ~0xf)-16, (((addr & 0xf)+length-1) & ~0xf)+48))
+            tb.log.debug("%s", tb.axi_ram.hexdump_str((addr & ~0xF) - 16, (((addr & 0xF) + length - 1) & ~0xF) + 48))
 
             desc = DescTransaction(addr=addr, len=len(test_data), tag=cur_tag, id=cur_tag)
             await tb.read_desc_source.send(desc)
@@ -145,7 +145,6 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause]),
@@ -157,8 +156,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -180,30 +179,29 @@ def test_axi_dma_rd(request, axi_data_width, unaligned):
 
     axis_data_width = axi_data_width
 
-    parameters['AXI_DATA_WIDTH'] = axi_data_width
-    parameters['AXI_ADDR_WIDTH'] = 16
-    parameters['AXI_STRB_WIDTH'] = parameters['AXI_DATA_WIDTH'] // 8
-    parameters['AXI_ID_WIDTH'] = 8
-    parameters['AXI_MAX_BURST_LEN'] = 16
-    parameters['AXIS_DATA_WIDTH'] = axis_data_width
-    parameters['AXIS_KEEP_ENABLE'] = int(parameters['AXIS_DATA_WIDTH'] > 8)
-    parameters['AXIS_KEEP_WIDTH'] = parameters['AXIS_DATA_WIDTH'] // 8
-    parameters['AXIS_LAST_ENABLE'] = 1
-    parameters['AXIS_ID_ENABLE'] = 1
-    parameters['AXIS_ID_WIDTH'] = 8
-    parameters['AXIS_DEST_ENABLE'] = 0
-    parameters['AXIS_DEST_WIDTH'] = 8
-    parameters['AXIS_USER_ENABLE'] = 1
-    parameters['AXIS_USER_WIDTH'] = 1
-    parameters['LEN_WIDTH'] = 20
-    parameters['TAG_WIDTH'] = 8
-    parameters['ENABLE_SG'] = 0
-    parameters['ENABLE_UNALIGNED'] = unaligned
+    parameters["AXI_DATA_WIDTH"] = axi_data_width
+    parameters["AXI_ADDR_WIDTH"] = 16
+    parameters["AXI_STRB_WIDTH"] = parameters["AXI_DATA_WIDTH"] // 8
+    parameters["AXI_ID_WIDTH"] = 8
+    parameters["AXI_MAX_BURST_LEN"] = 16
+    parameters["AXIS_DATA_WIDTH"] = axis_data_width
+    parameters["AXIS_KEEP_ENABLE"] = int(parameters["AXIS_DATA_WIDTH"] > 8)
+    parameters["AXIS_KEEP_WIDTH"] = parameters["AXIS_DATA_WIDTH"] // 8
+    parameters["AXIS_LAST_ENABLE"] = 1
+    parameters["AXIS_ID_ENABLE"] = 1
+    parameters["AXIS_ID_WIDTH"] = 8
+    parameters["AXIS_DEST_ENABLE"] = 0
+    parameters["AXIS_DEST_WIDTH"] = 8
+    parameters["AXIS_USER_ENABLE"] = 1
+    parameters["AXIS_USER_WIDTH"] = 1
+    parameters["LEN_WIDTH"] = 20
+    parameters["TAG_WIDTH"] = 8
+    parameters["ENABLE_SG"] = 0
+    parameters["ENABLE_UNALIGNED"] = unaligned
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

@@ -101,18 +101,18 @@ async def run_test_write(dut, port=0, data_in=None, idle_inserter=None, backpres
     tb.set_backpressure_generator(backpressure_inserter)
 
     for length in [*list(range(1, byte_lanes * 2)), 1024]:
-        for offset in list(range(byte_lanes, byte_lanes*2))+list(range(4096-byte_lanes, 4096)):
+        for offset in list(range(byte_lanes, byte_lanes * 2)) + list(range(4096 - byte_lanes, 4096)):
             tb.log.info("length %d, offset %d, size %d", length, offset, size)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await axi_master.write(addr-4, b'\xaa'*(length+8))
+            await axi_master.write(addr - 4, b"\xaa" * (length + 8))
 
             await axi_master.write(addr, test_data, size=size)
 
-            data = await axi_master.read(addr-1, length+2)
+            data = await axi_master.read(addr - 1, length + 2)
 
-            assert data.data == b'\xaa'+test_data+b'\xaa'
+            assert data.data == b"\xaa" + test_data + b"\xaa"
 
     await RisingEdge(dut.a_clk)
     await RisingEdge(dut.a_clk)
@@ -135,9 +135,9 @@ async def run_test_read(dut, port=0, data_in=None, idle_inserter=None, backpress
     tb.set_backpressure_generator(backpressure_inserter)
 
     for length in [*list(range(1, byte_lanes * 2)), 1024]:
-        for offset in list(range(byte_lanes, byte_lanes*2))+list(range(4096-byte_lanes, 4096)):
+        for offset in list(range(byte_lanes, byte_lanes * 2)) + list(range(4096 - byte_lanes, 4096)):
             tb.log.info("length %d, offset %d, size %d", length, offset, size)
-            addr = offset+0x1000
+            addr = offset + 0x1000
             test_data = bytearray([x % 256 for x in range(length)])
 
             await axi_master.write(addr, test_data)
@@ -160,7 +160,7 @@ async def run_test_arb(dut, data_in=None, idle_inserter=None, backpressure_inser
     tb.set_backpressure_generator(backpressure_inserter)
 
     async def worker(master, offset):
-        wr_op = master.init_write(offset, b'\x11\x22\x33\x44')
+        wr_op = master.init_write(offset, b"\x11\x22\x33\x44")
         rd_op = master.init_read(offset, 4)
 
         await wr_op.wait()
@@ -169,8 +169,8 @@ async def run_test_arb(dut, data_in=None, idle_inserter=None, backpressure_inser
     workers = []
 
     for k in range(10):
-        workers.append(cocotb.start_soon(worker(tb.axi_master[0], k*256)))
-        workers.append(cocotb.start_soon(worker(tb.axi_master[1], k*256)))
+        workers.append(cocotb.start_soon(worker(tb.axi_master[0], k * 256)))
+        workers.append(cocotb.start_soon(worker(tb.axi_master[1], k * 256)))
 
     while workers:
         await workers.pop(0)
@@ -191,14 +191,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     async def worker(master, offset, aperture, count=16):
         for _ in range(count):
             length = random.randint(1, min(512, aperture))
-            addr = offset+random.randint(0, aperture-length)
+            addr = offset + random.randint(0, aperture - length)
             test_data = bytearray([x % 256 for x in range(length)])
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             await master.write(addr, test_data)
 
-            await Timer(random.randint(1, 100), unit='ns')
+            await Timer(random.randint(1, 100), unit="ns")
 
             data = await master.read(addr, length)
             assert data.data == test_data
@@ -206,7 +206,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     workers = []
 
     for k in range(16):
-        workers.append(cocotb.start_soon(worker(tb.axi_master[k % len(tb.axi_master)], k*0x1000, 0x1000, count=16)))
+        workers.append(cocotb.start_soon(worker(tb.axi_master[k % len(tb.axi_master)], k * 0x1000, 0x1000, count=16)))
 
     while workers:
         await workers.pop(0)
@@ -220,10 +220,9 @@ def cycle_pause():
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     data_width = len(cocotb.top.s_axi_a_wdata)
     byte_lanes = data_width // 8
-    max_burst_size = (byte_lanes-1).bit_length()
+    max_burst_size = (byte_lanes - 1).bit_length()
 
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
@@ -248,8 +247,8 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
@@ -271,17 +270,16 @@ def test_axi_dp_ram(request, data_width):
 
     parameters = {}
 
-    parameters['DATA_WIDTH'] = data_width
-    parameters['ADDR_WIDTH'] = 16
-    parameters['STRB_WIDTH'] = parameters['DATA_WIDTH'] // 8
-    parameters['ID_WIDTH'] = 8
-    parameters['A_PIPELINE_OUTPUT'] = 0
-    parameters['B_PIPELINE_OUTPUT'] = 0
+    parameters["DATA_WIDTH"] = data_width
+    parameters["ADDR_WIDTH"] = 16
+    parameters["STRB_WIDTH"] = parameters["DATA_WIDTH"] // 8
+    parameters["ID_WIDTH"] = 8
+    parameters["A_PIPELINE_OUTPUT"] = 0
+    parameters["B_PIPELINE_OUTPUT"] = 0
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 

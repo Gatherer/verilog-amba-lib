@@ -42,7 +42,6 @@ from cocotbext.axi import AxiBus, AxiRam
 
 
 class BaseBus(Bus):
-
     _signals = ("data",)
     _optional_signals = ()
 
@@ -63,7 +62,6 @@ class DataBus(BaseBus):
 
 
 class DataSource:
-
     def __init__(self, bus, clock, reset=None, *args, **kwargs):
         self.bus = bus
         self.clock = clock
@@ -82,7 +80,7 @@ class DataSource:
         self.seg_data_width = self.width // self.seg_count
         self.seg_byte_lanes = self.seg_data_width // self.byte_size
 
-        self.seg_data_mask = 2**self.seg_data_width-1
+        self.seg_data_mask = 2**self.seg_data_width - 1
 
         # queue per segment
         self.queue = [Queue() for x in range(self.seg_count)]
@@ -121,12 +119,12 @@ class DataSource:
 
         # pad to interface width
         if len(data) % self.byte_lanes:
-            data.extend(b'\x00'*(self.byte_lanes - (len(data) % self.byte_lanes)))
+            data.extend(b"\x00" * (self.byte_lanes - (len(data) % self.byte_lanes)))
 
         # stripe across segment queues
         index = 0
         for offset in range(0, len(data), self.seg_byte_lanes):
-            self.queue[index].put_nowait(data[offset:offset+self.seg_byte_lanes])
+            self.queue[index].put_nowait(data[offset : offset + self.seg_byte_lanes])
             index = (index + 1) % self.seg_count
 
     async def _run(self):
@@ -150,11 +148,11 @@ class DataSource:
             # process segments
             for seg in range(self.seg_count):
                 seg_mask = 1 << seg
-                if ((ready_sample & seg_mask) or not (valid & seg_mask)):
+                if (ready_sample & seg_mask) or not (valid & seg_mask):
                     if not self.queue[seg].empty() and not self.pause:
                         d = self.queue[seg].get_nowait()
-                        data &= ~(self.seg_data_mask << self.seg_data_width*seg)
-                        data |= int.from_bytes(d, 'little') << self.seg_data_width*seg
+                        data &= ~(self.seg_data_mask << self.seg_data_width * seg)
+                        data |= int.from_bytes(d, "little") << self.seg_data_width * seg
                         valid |= seg_mask
 
                         self.log.info("TX seg: %d data: %s", seg, d)
@@ -173,7 +171,6 @@ class DataSource:
 
 
 class DataSink:
-
     def __init__(self, bus, clock, reset=None, watermark=None, *args, **kwargs):
         self.bus = bus
         self.clock = clock
@@ -197,7 +194,7 @@ class DataSink:
         self.seg_data_width = self.width // self.seg_count
         self.seg_byte_lanes = self.seg_data_width // self.byte_size
 
-        self.seg_data_mask = 2**self.seg_data_width-1
+        self.seg_data_mask = 2**self.seg_data_width - 1
 
         # queue per segment
         self.queue = [Queue() for x in range(self.seg_count)]
@@ -285,9 +282,9 @@ class DataSink:
             for seg in range(self.seg_count):
                 seg_mask = 1 << seg
                 if ready & valid_sample & seg_mask:
-                    data = (data_sample >> self.seg_data_width*seg) & self.seg_data_mask
+                    data = (data_sample >> self.seg_data_width * seg) & self.seg_data_mask
 
-                    data = data.to_bytes(self.seg_byte_lanes, 'little')
+                    data = data.to_bytes(self.seg_byte_lanes, "little")
 
                     self.queue[seg].put_nowait(data)
                     self.enqueue_event.set()
@@ -297,7 +294,7 @@ class DataSink:
                 if has_watermark and self.watermark_level > 0 and self.queue[seg].qsize() > self.watermark_level:
                     watermark = 1
 
-            ready = 2**self.seg_count-1
+            ready = 2**self.seg_count - 1
 
             if self.pause:
                 ready = 0
@@ -424,9 +421,16 @@ class TB:
             await RisingEdge(self.dut.clk)
 
 
-async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
-        stream_idle_inserter=None, stream_backpressure_inserter=None,
-        axi_idle_inserter=None, axi_backpressure_inserter=None):
+async def run_test(
+    dut,
+    payload_lengths=None,
+    payload_data=None,
+    space=False,
+    stream_idle_inserter=None,
+    stream_backpressure_inserter=None,
+    axi_idle_inserter=None,
+    axi_backpressure_inserter=None,
+):
 
     tb = TB(dut)
 
@@ -440,14 +444,14 @@ async def run_test(dut, payload_lengths=None, payload_data=None, space=False,
     tb.set_axi_backpressure_generator(axi_backpressure_inserter)
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2 ** len(dut.m_axi_awaddr) - 1)
     dut.cfg_enable.value = Immediate(1)
 
     test_frames = []
 
     for test_data in [payload_data(x) for x in payload_lengths()]:
         if len(test_data) % byte_lanes:
-            test_data.extend(b'\x00'*(byte_lanes - (len(test_data) % byte_lanes)))
+            test_data.extend(b"\x00" * (byte_lanes - (len(test_data) % byte_lanes)))
 
         test_frames.append(test_data)
         await tb.source.write(test_data)
@@ -479,15 +483,15 @@ async def run_test_init_sink_pause(dut):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2 ** len(dut.m_axi_awaddr) - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
 
     if len(test_data) % byte_lanes:
-        test_data.extend(b'\x00'*(byte_lanes - (len(test_data) % byte_lanes)))
+        test_data.extend(b"\x00" * (byte_lanes - (len(test_data) % byte_lanes)))
 
     await tb.source.write(test_data)
 
@@ -518,15 +522,15 @@ async def run_test_init_sink_pause_reset(dut, reset_type=TB.reset):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2 ** len(dut.m_axi_awaddr) - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
 
     if len(test_data) % byte_lanes:
-        test_data.extend(b'\x00'*(byte_lanes - (len(test_data) % byte_lanes)))
+        test_data.extend(b"\x00" * (byte_lanes - (len(test_data) % byte_lanes)))
 
     await tb.source.write(test_data)
 
@@ -567,13 +571,13 @@ async def run_test_shift_in_reset(dut, reset_type=TB.reset):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2 ** len(dut.m_axi_awaddr) - 1)
     dut.cfg_enable.value = Immediate(1)
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
 
     if len(test_data) % byte_lanes:
-        test_data.extend(b'\x00'*(byte_lanes - (len(test_data) % byte_lanes)))
+        test_data.extend(b"\x00" * (byte_lanes - (len(test_data) % byte_lanes)))
 
     await tb.source.write(test_data)
 
@@ -612,13 +616,13 @@ async def run_test_shift_out_reset(dut, reset_type=TB.reset):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2 ** len(dut.m_axi_awaddr) - 1)
     dut.cfg_enable.value = Immediate(1)
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024*byte_lanes))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 1024 * byte_lanes))
 
     if len(test_data) % byte_lanes:
-        test_data.extend(b'\x00'*(byte_lanes - (len(test_data) % byte_lanes)))
+        test_data.extend(b"\x00" * (byte_lanes - (len(test_data) % byte_lanes)))
 
     await tb.source.write(test_data)
 
@@ -660,19 +664,19 @@ async def run_test_overflow(dut):
     await tb.reset()
 
     dut.cfg_fifo_base_addr.value = Immediate(0)
-    dut.cfg_fifo_size_mask.value = Immediate(2**len(dut.m_axi_awaddr)-1)
+    dut.cfg_fifo_size_mask.value = Immediate(2 ** len(dut.m_axi_awaddr) - 1)
     dut.cfg_enable.value = Immediate(1)
 
     tb.sink.pause = True
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 2*2**len(dut.m_axi_awaddr)))
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 2 * 2 ** len(dut.m_axi_awaddr)))
 
     if len(test_data) % byte_lanes:
-        test_data.extend(b'\x00'*(byte_lanes - (len(test_data) % byte_lanes)))
+        test_data.extend(b"\x00" * (byte_lanes - (len(test_data) % byte_lanes)))
 
     await tb.source.write(test_data)
 
-    for _ in range(2*2**len(dut.m_axi_awaddr)//len(dut.m_axi_wstrb)):
+    for _ in range(2 * 2 ** len(dut.m_axi_awaddr) // len(dut.m_axi_wstrb)):
         await RisingEdge(dut.clk)
 
     tb.sink.pause = False
@@ -697,7 +701,7 @@ def cycle_pause():
 def size_list():
     data_width = len(cocotb.top.input_data)
     byte_width = data_width // 8
-    return list(range(byte_width, byte_width*64, byte_width))+[1]*64
+    return list(range(byte_width, byte_width * 64, byte_width)) + [1] * 64
 
 
 def incrementing_payload(length):
@@ -705,24 +709,30 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
-        (("space",
-                "stream_idle_inserter", "stream_backpressure_inserter",
-                "axi_idle_inserter", "axi_backpressure_inserter"), [
-            (False, None, None, None, None),
-            (False, cycle_pause, None, None, None),
-            (False, None, cycle_pause, None, None),
-            (False, None, None, cycle_pause, None),
-            (False, None, None, None, cycle_pause),
-            (True,  None, None, None, None),
-            (True,  cycle_pause, None, None, None),
-            (True,  None, cycle_pause, None, None),
-            (True,  None, None, cycle_pause, None),
-            (True,  None, None, None, cycle_pause),
-        ]),
+        (
+            (
+                "space",
+                "stream_idle_inserter",
+                "stream_backpressure_inserter",
+                "axi_idle_inserter",
+                "axi_backpressure_inserter",
+            ),
+            [
+                (False, None, None, None, None),
+                (False, cycle_pause, None, None, None),
+                (False, None, cycle_pause, None, None),
+                (False, None, None, cycle_pause, None),
+                (False, None, None, None, cycle_pause),
+                (True, None, None, None, None),
+                (True, cycle_pause, None, None, None),
+                (True, None, cycle_pause, None, None),
+                (True, None, None, cycle_pause, None),
+                (True, None, None, None, cycle_pause),
+            ],
+        ),
     )
 
     run_test = cocotb.test(test_params(run_test))
@@ -731,8 +741,7 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_overflow = cocotb.test(run_test_overflow)
 
     test_params = cocotb.parametrize(
-        ("reset_type", [TB.reset, TB.reset_source,
-                TB.reset_sink, TB.reset_axi, TB.reset_cfg]),
+        ("reset_type", [TB.reset, TB.reset_source, TB.reset_sink, TB.reset_axi, TB.reset_cfg]),
     )
 
     run_test_init_sink_pause_reset = cocotb.test(test_params(run_test_init_sink_pause_reset))
@@ -743,18 +752,21 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl', 'axi', 'v'))
-results_dir = os.path.abspath(os.path.join(tests_dir, '..', 'results', os.path.basename(tests_dir)))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axi", "v"))
+results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
-@pytest.mark.parametrize(("seg_width", "seg_cnt"), [
-            (32, 1),
-            (16, 2),
-        ])
+@pytest.mark.parametrize(
+    ("seg_width", "seg_cnt"),
+    [
+        (32, 1),
+        (16, 2),
+    ],
+)
 def test_axi_vfifo_raw(request, seg_width, seg_cnt):
     dut = "axi_vfifo_raw"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -768,25 +780,24 @@ def test_axi_vfifo_raw(request, seg_width, seg_cnt):
 
     parameters = {}
 
-    parameters['SEG_WIDTH'] = seg_width
-    parameters['SEG_CNT'] = seg_cnt
-    parameters['AXI_DATA_WIDTH'] = seg_width*seg_cnt
-    parameters['AXI_ADDR_WIDTH'] = 16
-    parameters['AXI_STRB_WIDTH'] = parameters['AXI_DATA_WIDTH'] // 8
-    parameters['AXI_ID_WIDTH'] = 8
-    parameters['AXI_MAX_BURST_LEN'] = 16
-    parameters['LEN_WIDTH'] = parameters['AXI_ADDR_WIDTH']
-    parameters['WRITE_FIFO_DEPTH'] = 64
-    parameters['WRITE_MAX_BURST_LEN'] = parameters['WRITE_FIFO_DEPTH'] // 4
-    parameters['READ_FIFO_DEPTH'] = 128
-    parameters['READ_MAX_BURST_LEN'] = parameters['WRITE_MAX_BURST_LEN']
-    parameters['WATERMARK_LEVEL'] = parameters['WRITE_FIFO_DEPTH'] // 2
-    parameters['CTRL_OUT_EN'] = 0
+    parameters["SEG_WIDTH"] = seg_width
+    parameters["SEG_CNT"] = seg_cnt
+    parameters["AXI_DATA_WIDTH"] = seg_width * seg_cnt
+    parameters["AXI_ADDR_WIDTH"] = 16
+    parameters["AXI_STRB_WIDTH"] = parameters["AXI_DATA_WIDTH"] // 8
+    parameters["AXI_ID_WIDTH"] = 8
+    parameters["AXI_MAX_BURST_LEN"] = 16
+    parameters["LEN_WIDTH"] = parameters["AXI_ADDR_WIDTH"]
+    parameters["WRITE_FIFO_DEPTH"] = 64
+    parameters["WRITE_MAX_BURST_LEN"] = parameters["WRITE_FIFO_DEPTH"] // 4
+    parameters["READ_FIFO_DEPTH"] = 128
+    parameters["READ_MAX_BURST_LEN"] = parameters["WRITE_MAX_BURST_LEN"]
+    parameters["WATERMARK_LEVEL"] = parameters["WRITE_FIFO_DEPTH"] // 2
+    parameters["CTRL_OUT_EN"] = 0
 
-    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+    extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
-    sim_build = os.path.join(results_dir,
-        request.node.name.replace('[', '-').replace(']', ''))
+    sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
 
     runner = get_runner("verilator")
 
