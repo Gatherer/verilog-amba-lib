@@ -63,9 +63,27 @@ jobs:
         done <<< "$runs"
         echo "run=true" >> $GITHUB_OUTPUT
 
+  # same checks as local "make lint", regression is skipped on failure
+  lint:
+    name: Lint
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: Run ruff
+      run: make lint
+
   verilator:
     name: Verilator
-    needs: changes
+    needs: [changes, lint]
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-24.04
 
