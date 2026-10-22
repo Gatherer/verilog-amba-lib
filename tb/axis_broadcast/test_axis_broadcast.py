@@ -154,40 +154,49 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH"],
+    "sv": [],
+}
+
 
 @pytest.mark.parametrize("data_width", [8, 16, 32])
 @pytest.mark.parametrize("ports", range(1, 5))
-def test_axis_broadcast(request, ports, data_width):
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_broadcast(request, hdl, ports, data_width):
     dut = "axis_broadcast"
     wrapper = f"{dut}_wrap_{ports}"
     module = os.path.splitext(os.path.basename(__file__))[0]
     toplevel = wrapper
 
     # generate wrapper
-    wrapper_file = os.path.join(results_dir, f"{wrapper}.v")
+    wrapper_file = os.path.join(results_dir, f"{wrapper}.{hdl}")
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"], cwd=results_dir
+            [sys.executable, os.path.join(rtl_dir, hdl, f"{dut}_wrap.py"), "-p", f"{ports}"], cwd=results_dir
         ).wait()
 
-    verilog_sources = [
-        wrapper_file,
-        os.path.join(rtl_dir, f"{dut}.v"),
-    ]
+    verilog_sources = [wrapper_file]
+    if hdl == "sv":
+        verilog_sources.append(os.path.join(rtl_dir, "if", "axis_if.sv"))
+    verilog_sources.append(os.path.join(rtl_dir, hdl, f"{dut}.{hdl}"))
 
     parameters = {}
 
     parameters["DATA_WIDTH"] = data_width
     parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
-    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    # sv wrapper: KEEP_WIDTH is a localparam
+    if hdl == "v":
+        parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
     parameters["ID_ENABLE"] = 1
     parameters["ID_WIDTH"] = 8
     parameters["DEST_ENABLE"] = 1
@@ -207,7 +216,7 @@ def test_axis_broadcast(request, ports, data_width):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
