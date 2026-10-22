@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2019 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -85,28 +86,35 @@ module axis_broadcast #
     output wire [M_COUNT*USER_WIDTH-1:0] m_axis_tuser
 );
 
-parameter CL_M_COUNT = $clog2(M_COUNT);
+// check configuration
+initial begin
+    if (M_COUNT < 1) begin
+        $error("Error: M_COUNT must be at least 1 (instance %m)");
+        $finish;
+    end
+end
 
-// datapath registers
-reg s_axis_tready_reg = 1'b0, s_axis_tready_next;
+// control registers
+reg               s_axis_tready_reg;
+reg [M_COUNT-1:0] m_axis_tvalid_reg, m_axis_tvalid_next;
+reg               temp_m_axis_tvalid_reg, temp_m_axis_tvalid_next;
 
-reg [DATA_WIDTH-1:0] m_axis_tdata_reg  = {DATA_WIDTH{1'b0}};
-reg [KEEP_WIDTH-1:0] m_axis_tkeep_reg  = {KEEP_WIDTH{1'b0}};
-reg [M_COUNT-1:0]    m_axis_tvalid_reg = {M_COUNT{1'b0}}, m_axis_tvalid_next;
-reg                  m_axis_tlast_reg  = 1'b0;
-reg [ID_WIDTH-1:0]   m_axis_tid_reg    = {ID_WIDTH{1'b0}};
-reg [DEST_WIDTH-1:0] m_axis_tdest_reg  = {DEST_WIDTH{1'b0}};
-reg [USER_WIDTH-1:0] m_axis_tuser_reg  = {USER_WIDTH{1'b0}};
+// datapath registers, no reset
+reg [DATA_WIDTH-1:0] m_axis_tdata_reg;
+reg [KEEP_WIDTH-1:0] m_axis_tkeep_reg;
+reg                  m_axis_tlast_reg;
+reg [ID_WIDTH-1:0]   m_axis_tid_reg;
+reg [DEST_WIDTH-1:0] m_axis_tdest_reg;
+reg [USER_WIDTH-1:0] m_axis_tuser_reg;
 
-reg [DATA_WIDTH-1:0] temp_m_axis_tdata_reg  = {DATA_WIDTH{1'b0}};
-reg [KEEP_WIDTH-1:0] temp_m_axis_tkeep_reg  = {KEEP_WIDTH{1'b0}};
-reg                  temp_m_axis_tvalid_reg = 1'b0, temp_m_axis_tvalid_next;
-reg                  temp_m_axis_tlast_reg  = 1'b0;
-reg [ID_WIDTH-1:0]   temp_m_axis_tid_reg    = {ID_WIDTH{1'b0}};
-reg [DEST_WIDTH-1:0] temp_m_axis_tdest_reg  = {DEST_WIDTH{1'b0}};
-reg [USER_WIDTH-1:0] temp_m_axis_tuser_reg  = {USER_WIDTH{1'b0}};
+reg [DATA_WIDTH-1:0] temp_m_axis_tdata_reg;
+reg [KEEP_WIDTH-1:0] temp_m_axis_tkeep_reg;
+reg                  temp_m_axis_tlast_reg;
+reg [ID_WIDTH-1:0]   temp_m_axis_tid_reg;
+reg [DEST_WIDTH-1:0] temp_m_axis_tdest_reg;
+reg [USER_WIDTH-1:0] temp_m_axis_tuser_reg;
 
-// // datapath control
+// datapath control
 reg store_axis_input_to_output;
 reg store_axis_input_to_temp;
 reg store_axis_temp_to_output;
@@ -121,8 +129,11 @@ assign m_axis_tid    = ID_ENABLE   ? {M_COUNT{m_axis_tid_reg}}   : {M_COUNT*ID_W
 assign m_axis_tdest  = DEST_ENABLE ? {M_COUNT{m_axis_tdest_reg}} : {M_COUNT*DEST_WIDTH{1'b0}};
 assign m_axis_tuser  = USER_ENABLE ? {M_COUNT{m_axis_tuser_reg}} : {M_COUNT*USER_WIDTH{1'b0}};
 
-// enable ready input next cycle if output is ready or the temp reg will not be filled on the next cycle (output reg empty or no input)
-wire s_axis_tready_early = ((m_axis_tready & m_axis_tvalid) == m_axis_tvalid) || (!temp_m_axis_tvalid_reg && (!m_axis_tvalid || !s_axis_tvalid));
+// all outputs with pending data accept it this cycle, also true if no output is valid
+wire m_axis_tready_all = (m_axis_tready & m_axis_tvalid_reg) == m_axis_tvalid_reg;
+
+// enable ready input next cycle if output is ready or the temp reg will not be filled on the next cycle (no input)
+wire s_axis_tready_early = m_axis_tready_all || (!temp_m_axis_tvalid_reg && !s_axis_tvalid);
 
 always @* begin
     // transfer sink ready state to source
@@ -135,7 +146,7 @@ always @* begin
 
     if (s_axis_tready_reg) begin
         // input is ready
-        if (((m_axis_tready & m_axis_tvalid) == m_axis_tvalid) || !m_axis_tvalid) begin
+        if (m_axis_tready_all) begin
             // output is ready or currently not valid, transfer data to output
             m_axis_tvalid_next = {M_COUNT{s_axis_tvalid}};
             store_axis_input_to_output = 1'b1;
@@ -144,7 +155,7 @@ always @* begin
             temp_m_axis_tvalid_next = s_axis_tvalid;
             store_axis_input_to_temp = 1'b1;
         end
-    end else if ((m_axis_tready & m_axis_tvalid) == m_axis_tvalid) begin
+    end else if (m_axis_tready_all) begin
         // input is not ready, but output is ready
         m_axis_tvalid_next = {M_COUNT{temp_m_axis_tvalid_reg}};
         temp_m_axis_tvalid_next = 1'b0;
@@ -157,7 +168,15 @@ always @(posedge clk) begin
     m_axis_tvalid_reg <= m_axis_tvalid_next;
     temp_m_axis_tvalid_reg <= temp_m_axis_tvalid_next;
 
-    // datapath
+    if (rst) begin
+        s_axis_tready_reg <= 1'b0;
+        m_axis_tvalid_reg <= {M_COUNT{1'b0}};
+        temp_m_axis_tvalid_reg <= 1'b0;
+    end
+end
+
+// datapath
+always @(posedge clk) begin
     if (store_axis_input_to_output) begin
         m_axis_tdata_reg <= s_axis_tdata;
         m_axis_tkeep_reg <= s_axis_tkeep;
@@ -181,12 +200,6 @@ always @(posedge clk) begin
         temp_m_axis_tid_reg   <= s_axis_tid;
         temp_m_axis_tdest_reg <= s_axis_tdest;
         temp_m_axis_tuser_reg <= s_axis_tuser;
-    end
-
-    if (rst) begin
-        s_axis_tready_reg <= 1'b0;
-        m_axis_tvalid_reg <= {M_COUNT{1'b0}};
-        temp_m_axis_tvalid_reg <= {M_COUNT{1'b0}};
     end
 end
 

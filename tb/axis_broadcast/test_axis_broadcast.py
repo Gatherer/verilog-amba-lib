@@ -26,6 +26,7 @@ THE SOFTWARE.
 import itertools
 import logging
 import os
+import random
 import subprocess
 import sys
 
@@ -96,6 +97,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
         test_frame.tdest = cur_id
+        test_frame.tuser = cur_id & 1
 
         test_frames.append(test_frame)
         await tb.source.send(test_frame)
@@ -109,7 +111,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
             assert rx_frame.tdata == test_frame.tdata
             assert rx_frame.tid == test_frame.tid
             assert rx_frame.tdest == test_frame.tdest
-            assert not rx_frame.tuser
+            assert rx_frame.tuser == test_frame.tuser
 
     for sink in tb.sink:
         assert sink.empty()
@@ -120,6 +122,12 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
+
+
+def random_pause():
+    # independent pattern per sink, exercises partial output acceptance
+    while True:
+        yield int(random.random() < 0.5)
 
 
 def size_list():
@@ -137,7 +145,7 @@ if getattr(cocotb, "SIM_NAME", None):
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
         ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
     run_test = cocotb.test(test_params(run_test))
@@ -155,7 +163,7 @@ if tests_dir not in sys.path:
 
 
 @pytest.mark.parametrize("data_width", [8, 16, 32])
-@pytest.mark.parametrize("ports", range(1, 4))
+@pytest.mark.parametrize("ports", range(1, 5))
 def test_axis_broadcast(request, ports, data_width):
     dut = "axis_broadcast"
     wrapper = f"{dut}_wrap_{ports}"
