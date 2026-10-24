@@ -75,6 +75,11 @@ class TB:
         self.mark_when_full = int(dut.MARK_WHEN_FULL.value)
         self.pause_enable = int(dut.PAUSE_ENABLE.value)
         self.frame_pause = int(dut.FRAME_PAUSE.value)
+        # tstrb only exists on the sv wrapper
+        self.has_strb = hasattr(dut, "STRB_ENABLE")
+        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
+        if self.has_strb:
+            dut.s_axis_tstrb.value = Immediate(0)
 
         self.clear_status()
         cocotb.start_soon(self._monitor_s())
@@ -116,6 +121,8 @@ class TB:
             if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
                 self.out_beats += 1
                 self.out_in_frame = not int(dut.m_axis_tlast.value)
+                if self.has_strb and not self.strb_enable:
+                    assert int(dut.m_axis_tstrb.value) == int(dut.m_axis_tkeep.value), "tstrb not tkeep"
             if self.pause_enable and self.frame_pause and int(dut.m_pause_ack.value):
                 assert not self.out_in_frame, "pause inside frame"
             if not self.pause_enable:
@@ -349,6 +356,60 @@ async def run_test_status_depth(dut):
     assert rx_frame.tdata == test_data
 
     await tb.wait_empty()
+
+
+async def run_test_tstrb(dut):
+
+    tb = TB(dut)
+
+    if not tb.has_strb:
+        return
+
+    strb_mask = 2 ** len(dut.s_axis_tstrb) - 1
+    s_strb = []
+    m_strb = []
+
+    async def drive():
+        # new random tstrb each cycle, sampled on handshake
+        while True:
+            await RisingEdge(dut.s_clk)
+            dut.s_axis_tstrb.value = random.randint(0, strb_mask)
+
+    async def capture_s():
+        while True:
+            await FallingEdge(dut.s_clk)
+            if int(dut.s_axis_tvalid.value) and int(dut.s_axis_tready.value):
+                s_strb.append(int(dut.s_axis_tstrb.value))
+
+    async def capture_m():
+        while True:
+            await FallingEdge(dut.m_clk)
+            if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
+                m_strb.append(int(dut.m_axis_tstrb.value))
+
+    await tb.reset()
+
+    cocotb.start_soon(drive())
+    cocotb.start_soon(capture_s())
+    cocotb.start_soon(capture_m())
+
+    test_frames = []
+
+    for k in range(8):
+        test_data = bytearray(itertools.islice(itertools.cycle(range(256)), tb.frame_len(16 + k)))
+        test_frame = AxiStreamFrame(test_data, tid=k, tdest=k, tuser=0)
+        test_frames.append(test_frame)
+        await tb.source.send(test_frame)
+
+    for test_frame in test_frames:
+        rx_frame = await tb.sink.recv()
+        tb.check_frame(rx_frame, test_frame)
+
+    await tb.wait_empty()
+
+    assert len(m_strb) == len(s_strb)
+    if tb.strb_enable:
+        assert m_strb == s_strb
 
 
 async def run_test_init_sink_pause(dut):
@@ -1014,6 +1075,7 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_source_reset_after_frames = frame_test(run_test_source_reset_after_frames)
 
     run_test_tuser_assert = frame_test(run_test_tuser_assert)
+    run_test_tstrb = frame_test(run_test_tstrb)
     run_test_init_sink_pause = frame_test(run_test_init_sink_pause)
     run_test_init_sink_pause_reset = cocotb.test(run_test_init_sink_pause_reset)
     run_test_init_sink_pause_source_reset = frame_test(run_test_init_sink_pause_source_reset)
@@ -1044,12 +1106,35 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
+
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH"],
+    "sv": [],
+}
+
+
+def hdl_sources(hdl):
+    # sources and toplevel per HDL variant
+    dut = "axis_async_fifo"
+    if hdl == "sv":
+        toplevel = f"{dut}_wrap"
+        sources = [
+            os.path.join(rtl_dir, "axis", "if", "axis_if.sv"),
+            os.path.join(rtl_dir, "common", "sv", "sync_reset_cdc.sv"),
+            os.path.join(rtl_dir, "axis", "sv", f"{dut}.sv"),
+            os.path.join(tests_dir, f"{toplevel}.sv"),
+        ]
+    else:
+        toplevel = dut
+        sources = [os.path.join(rtl_dir, "axis", "v", f"{dut}.v")]
+    return toplevel, sources
 
 
 @pytest.mark.parametrize(("s_clk", "m_clk"), [(10, 10), (10, 11), (11, 10)])
@@ -1059,8 +1144,10 @@ if tests_dir not in sys.path:
 )
 @pytest.mark.parametrize(("ram_pipeline", "output_fifo"), [(0, 0), (1, 0), (4, 0), (0, 1), (1, 1), (4, 1)])
 @pytest.mark.parametrize("data_width", [8, 16, 32, 64])
+@pytest.mark.parametrize("hdl", list(hdl_variants))
 def test_axis_async_fifo(
     request,
+    hdl,
     data_width,
     ram_pipeline,
     output_fifo,
@@ -1075,6 +1162,7 @@ def test_axis_async_fifo(
 
     run_sim(
         request,
+        hdl,
         s_clk,
         m_clk,
         DATA_WIDTH=data_width,
@@ -1115,14 +1203,32 @@ EXTRA_CONFIGS = {
     "no_last": {"DATA_WIDTH": 8, **NO_LAST},
     "no_last_w32": {"DATA_WIDTH": 32, **NO_LAST, "RAM_PIPELINE": 2},
     "no_last_out_fifo": {"DATA_WIDTH": 16, **NO_LAST, "RAM_PIPELINE": 4, "OUTPUT_FIFO_ENABLE": 1, "clk": (10, 4)},
+    # sv only: tstrb stored
+    "strb": {"DATA_WIDTH": 32, "STRB_ENABLE": 1, **FRAME},
+    "strb_out_fifo": {"DATA_WIDTH": 32, "STRB_ENABLE": 1, "RAM_PIPELINE": 2, "OUTPUT_FIFO_ENABLE": 1, "clk": (10, 4)},
+    # sv only: wide tuser, bad frame marker wider than 32 bit
+    "wide_user": {
+        "DATA_WIDTH": 16,
+        "USER_WIDTH": 40,
+        "USER_BAD_FRAME_VALUE": "40'h1",
+        "USER_BAD_FRAME_MASK": "40'h1",
+        **FRAME,
+        "DROP_BAD_FRAME": 1,
+    },
 }
+
+# parameters only the sv variant has or supports
+SV_ONLY_CONFIGS = {"strb", "strb_out_fifo", "wide_user"}
 
 
 @pytest.mark.parametrize("config", EXTRA_CONFIGS)
-def test_axis_async_fifo_extra(request, config):
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_async_fifo_extra(request, hdl, config):
+    if hdl == "v" and config in SV_ONLY_CONFIGS:
+        pytest.skip("sv only")
     params = dict(EXTRA_CONFIGS[config])
     s_clk, m_clk = params.pop("clk", (10, 11))
-    run_sim(request, s_clk, m_clk, **params)
+    run_sim(request, hdl, s_clk, m_clk, **params)
 
 
 # invalid with LAST_ENABLE = 0: (parameters, expected error)
@@ -1137,30 +1243,32 @@ CONFIG_ERRORS = {
 
 
 @pytest.mark.parametrize("config", CONFIG_ERRORS)
-def test_axis_async_fifo_config_error(request, config):
-    # config checks run at sim start, plain verilator binary is enough
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_async_fifo_config_error(request, hdl, config):
     params, message = CONFIG_ERRORS[config]
     params = {**NO_LAST, **params}
-    build_dir = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
-    os.makedirs(build_dir, exist_ok=True)
-    cmd = ["verilator", "--binary", "-Wno-fatal", "-Wno-SELRANGE", "-Wno-WIDTH", "--Mdir", build_dir]
-    cmd += [f"-G{k}={v}" for k, v in params.items()]
-    cmd += ["--top-module", "axis_async_fifo", "-o", "sim", os.path.join(rtl_dir, "axis_async_fifo.v")]
-    subprocess.run(cmd, check=True, capture_output=True)
-    res = subprocess.run([os.path.join(build_dir, "sim")], check=False, capture_output=True, text=True)
+    toplevel, sources = hdl_sources(hdl)
+    gparams = [f"-G{k}={v}" for k, v in params.items()]
+    if hdl == "sv":
+        # sv: config checks fail at elaboration
+        cmd = ["verilator", "--lint-only", *gparams, "--top-module", toplevel, *sources]
+        res = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    else:
+        # v: config checks run at sim start, plain verilator binary is enough
+        build_dir = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
+        os.makedirs(build_dir, exist_ok=True)
+        cmd = ["verilator", "--binary", "-Wno-fatal", *hdl_variants[hdl], "--Mdir", build_dir]
+        cmd += [*gparams, "--top-module", toplevel, "-o", "sim", *sources]
+        subprocess.run(cmd, check=True, capture_output=True)
+        res = subprocess.run([os.path.join(build_dir, "sim")], check=False, capture_output=True, text=True)
     assert res.returncode != 0
     assert message in res.stdout + res.stderr
 
 
-def run_sim(request, s_clk, m_clk, **overrides):
+def run_sim(request, hdl, s_clk, m_clk, **overrides):
 
-    dut = "axis_async_fifo"
     module = os.path.splitext(os.path.basename(__file__))[0]
-    toplevel = dut
-
-    verilog_sources = [
-        os.path.join(rtl_dir, f"{dut}.v"),
-    ]
+    toplevel, verilog_sources = hdl_sources(hdl)
 
     data_width = overrides.get("DATA_WIDTH", 8)
     keep_width = (data_width + 7) // 8
@@ -1192,6 +1300,10 @@ def run_sim(request, s_clk, m_clk, **overrides):
 
     parameters.update(overrides)
 
+    # sv wrapper: KEEP_WIDTH is a localparam
+    if hdl == "sv":
+        del parameters["KEEP_WIDTH"]
+
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
     extra_env["S_CLK"] = str(s_clk)
@@ -1205,7 +1317,7 @@ def run_sim(request, s_clk, m_clk, **overrides):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
