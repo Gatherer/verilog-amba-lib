@@ -1,4 +1,5 @@
 # Copyright (c) 2021-2023 Alex Forencich
+# Copyright (c) 2026 Thomas Glatte
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +24,10 @@
 proc constrain_axis_async_fifo_inst { inst } {
     puts "Inserting timing constraints for axis_async_fifo instance $inst"
 
-    # reset synchronization
-    set_false_path -from * -to [get_registers "$inst|s_rst_sync*_reg $inst|m_rst_sync*_reg"]
+    # reset synchronization, sv variant uses sync_reset_cdc instead
+    if {[get_collection_size [get_registers -nowarn "$inst|s_rst_sync*_reg $inst|m_rst_sync*_reg"]]} {
+        set_false_path -from * -to [get_registers "$inst|s_rst_sync*_reg $inst|m_rst_sync*_reg"]
+    }
 
     if {[get_collection_size [get_registers -nowarn "$inst|s_rst_sync1_reg"]]} {
         set_data_delay -from [get_registers "$inst|s_rst_sync1_reg"] -to [get_registers "$inst|s_rst_sync2_reg"] -override -get_value_from_clock_period min_clock_period -value_multiplier 0.8
