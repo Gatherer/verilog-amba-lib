@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2013-2023 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -134,13 +135,20 @@ module axis_fifo #
     output wire                   status_good_frame
 );
 
-parameter ADDR_WIDTH = (KEEP_ENABLE && KEEP_WIDTH > 1) ? $clog2(DEPTH/KEEP_WIDTH) : $clog2(DEPTH);
-parameter CL_KEEP_WDITH = $clog2(KEEP_WIDTH);
+// round up to full cycles
+localparam ADDR_WIDTH = (KEEP_ENABLE && KEEP_WIDTH > 1) ? $clog2((DEPTH+KEEP_WIDTH-1)/KEEP_WIDTH) : $clog2(DEPTH);
+// words per FIFO entry
+localparam ENTRY_WORDS = (KEEP_ENABLE && KEEP_WIDTH > 1) ? KEEP_WIDTH : 1;
 
-parameter OUTPUT_FIFO_ADDR_WIDTH = RAM_PIPELINE < 2 ? 3 : $clog2(RAM_PIPELINE*2+7);
+localparam OUTPUT_FIFO_ADDR_WIDTH = RAM_PIPELINE < 2 ? 3 : $clog2(RAM_PIPELINE*2+7);
 
 // check configuration
 initial begin
+    if (ADDR_WIDTH < 1) begin
+        $error("Error: DEPTH too small, must hold at least 2 cycles (instance %m)");
+        $finish;
+    end
+
     if (FRAME_FIFO && !LAST_ENABLE) begin
         $error("Error: FRAME_FIFO set requires LAST_ENABLE set (instance %m)");
         $finish;
@@ -184,17 +192,19 @@ localparam DEST_OFFSET = ID_OFFSET   + (ID_ENABLE   ? ID_WIDTH   : 0);
 localparam USER_OFFSET = DEST_OFFSET + (DEST_ENABLE ? DEST_WIDTH : 0);
 localparam WIDTH       = USER_OFFSET + (USER_ENABLE ? USER_WIDTH : 0);
 
-reg [ADDR_WIDTH:0] wr_ptr_reg = {ADDR_WIDTH+1{1'b0}};
-reg [ADDR_WIDTH:0] wr_ptr_commit_reg = {ADDR_WIDTH+1{1'b0}};
-reg [ADDR_WIDTH:0] rd_ptr_reg = {ADDR_WIDTH+1{1'b0}};
+// control registers
+reg [ADDR_WIDTH:0] wr_ptr_reg;
+reg [ADDR_WIDTH:0] wr_ptr_commit_reg;
+reg [ADDR_WIDTH:0] rd_ptr_reg;
 
+reg [RAM_PIPELINE+1-1:0] m_axis_tvalid_pipe_reg;
+
+// datapath registers, no reset
 (* ramstyle = "no_rw_check" *)
 reg [WIDTH-1:0] mem[(2**ADDR_WIDTH)-1:0];
-reg mem_read_data_valid_reg = 1'b0;
 
 (* shreg_extract = "no" *)
 reg [WIDTH-1:0] m_axis_pipe_reg[RAM_PIPELINE+1-1:0];
-reg [RAM_PIPELINE+1-1:0] m_axis_tvalid_pipe_reg = 0;
 
 // full when first MSB different but rest same
 wire full = wr_ptr_reg == (rd_ptr_reg ^ {1'b1, {ADDR_WIDTH{1'b0}}});
@@ -203,16 +213,16 @@ wire empty = wr_ptr_commit_reg == rd_ptr_reg;
 // overflow within packet
 wire full_wr = wr_ptr_reg == (wr_ptr_commit_reg ^ {1'b1, {ADDR_WIDTH{1'b0}}});
 
-reg s_frame_reg = 1'b0;
+reg s_frame_reg;
 
-reg drop_frame_reg = 1'b0;
-reg mark_frame_reg = 1'b0;
-reg send_frame_reg = 1'b0;
-reg [ADDR_WIDTH:0] depth_reg = 0;
-reg [ADDR_WIDTH:0] depth_commit_reg = 0;
-reg overflow_reg = 1'b0;
-reg bad_frame_reg = 1'b0;
-reg good_frame_reg = 1'b0;
+reg drop_frame_reg;
+reg mark_frame_reg;
+reg send_frame_reg;
+reg [ADDR_WIDTH:0] depth_reg;
+reg [ADDR_WIDTH:0] depth_commit_reg;
+reg overflow_reg;
+reg bad_frame_reg;
+reg good_frame_reg;
 
 assign s_axis_tready = FRAME_FIFO ? (!full || (full_wr && DROP_OVERSIZE_FRAME) || DROP_WHEN_FULL) : (!full || MARK_WHEN_FULL);
 
@@ -251,8 +261,9 @@ wire [USER_WIDTH-1:0]  m_axis_tuser_out;
 
 wire pipe_ready;
 
-assign status_depth = (KEEP_ENABLE && KEEP_WIDTH > 1) ? {depth_reg, {CL_KEEP_WDITH{1'b0}}} : depth_reg;
-assign status_depth_commit = (KEEP_ENABLE && KEEP_WIDTH > 1) ? {depth_commit_reg, {CL_KEEP_WDITH{1'b0}}} : depth_commit_reg;
+// in words, also correct for non power of 2 KEEP_WIDTH
+assign status_depth = depth_reg * ENTRY_WORDS;
+assign status_depth_commit = depth_commit_reg * ENTRY_WORDS;
 assign status_overflow = overflow_reg;
 assign status_bad_frame = bad_frame_reg;
 assign status_good_frame = good_frame_reg;
@@ -400,7 +411,7 @@ always @(posedge clk) begin
 
     if (rst) begin
         rd_ptr_reg <= {ADDR_WIDTH+1{1'b0}};
-        m_axis_tvalid_pipe_reg <= 0;
+        m_axis_tvalid_pipe_reg <= {RAM_PIPELINE+1{1'b0}};
     end
 end
 
@@ -422,18 +433,20 @@ if (!OUTPUT_FIFO_ENABLE) begin
 
 end else begin : output_fifo
 
-    // output datapath logic
-    reg [DATA_WIDTH-1:0] m_axis_tdata_reg  = {DATA_WIDTH{1'b0}};
-    reg [KEEP_WIDTH-1:0] m_axis_tkeep_reg  = {KEEP_WIDTH{1'b0}};
-    reg                  m_axis_tvalid_reg = 1'b0;
-    reg                  m_axis_tlast_reg  = 1'b0;
-    reg [ID_WIDTH-1:0]   m_axis_tid_reg    = {ID_WIDTH{1'b0}};
-    reg [DEST_WIDTH-1:0] m_axis_tdest_reg  = {DEST_WIDTH{1'b0}};
-    reg [USER_WIDTH-1:0] m_axis_tuser_reg  = {USER_WIDTH{1'b0}};
+    // control registers
+    reg                  m_axis_tvalid_reg;
 
-    reg [OUTPUT_FIFO_ADDR_WIDTH+1-1:0] out_fifo_wr_ptr_reg = 0;
-    reg [OUTPUT_FIFO_ADDR_WIDTH+1-1:0] out_fifo_rd_ptr_reg = 0;
-    reg out_fifo_half_full_reg = 1'b0;
+    reg [OUTPUT_FIFO_ADDR_WIDTH+1-1:0] out_fifo_wr_ptr_reg;
+    reg [OUTPUT_FIFO_ADDR_WIDTH+1-1:0] out_fifo_rd_ptr_reg;
+    reg out_fifo_half_full_reg;
+
+    // datapath registers, no reset
+    reg [DATA_WIDTH-1:0] m_axis_tdata_reg;
+    reg [KEEP_WIDTH-1:0] m_axis_tkeep_reg;
+    reg                  m_axis_tlast_reg;
+    reg [ID_WIDTH-1:0]   m_axis_tid_reg;
+    reg [DEST_WIDTH-1:0] m_axis_tdest_reg;
+    reg [USER_WIDTH-1:0] m_axis_tuser_reg;
 
     wire out_fifo_full = out_fifo_wr_ptr_reg == (out_fifo_rd_ptr_reg ^ {1'b1, {OUTPUT_FIFO_ADDR_WIDTH{1'b0}}});
     wire out_fifo_empty = out_fifo_wr_ptr_reg == out_fifo_rd_ptr_reg;
@@ -490,8 +503,9 @@ end else begin : output_fifo
         end
 
         if (rst) begin
-            out_fifo_wr_ptr_reg <= 0;
-            out_fifo_rd_ptr_reg <= 0;
+            out_fifo_wr_ptr_reg <= {OUTPUT_FIFO_ADDR_WIDTH+1{1'b0}};
+            out_fifo_rd_ptr_reg <= {OUTPUT_FIFO_ADDR_WIDTH+1{1'b0}};
+            out_fifo_half_full_reg <= 1'b0;
             m_axis_tvalid_reg <= 1'b0;
         end
     end
@@ -501,8 +515,8 @@ end
 if (PAUSE_ENABLE) begin : pause
 
     // Pause logic
-    reg pause_reg = 1'b0;
-    reg pause_frame_reg = 1'b0;
+    reg pause_reg;
+    reg pause_frame_reg;
 
     assign m_axis_tready_out = m_axis_tready && !pause_reg;
     assign m_axis_tvalid = m_axis_tvalid_out && !pause_reg;

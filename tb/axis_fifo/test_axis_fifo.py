@@ -34,7 +34,7 @@ import pytest
 import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import FallingEdge, RisingEdge
 from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
@@ -54,6 +54,67 @@ class TB:
 
         dut.pause_req.value = Immediate(0)
 
+        self.byte_lanes = self.source.byte_lanes
+        self.keep_enable = int(dut.KEEP_ENABLE.value)
+        # DEPTH counts beats without tkeep
+        self.depth = int(dut.DEPTH.value) * (1 if self.keep_enable else self.byte_lanes)
+        self.id_enable = int(dut.ID_ENABLE.value)
+        self.dest_enable = int(dut.DEST_ENABLE.value)
+        self.user_enable = int(dut.USER_ENABLE.value)
+        self.frame_fifo = int(dut.FRAME_FIFO.value)
+        self.drop_oversize_frame = int(dut.DROP_OVERSIZE_FRAME.value)
+        self.drop_bad_frame = int(dut.DROP_BAD_FRAME.value)
+        self.drop_when_full = int(dut.DROP_WHEN_FULL.value)
+        self.mark_when_full = int(dut.MARK_WHEN_FULL.value)
+        self.pause_enable = int(dut.PAUSE_ENABLE.value)
+        self.frame_pause = int(dut.FRAME_PAUSE.value)
+
+        self.clear_status()
+        cocotb.start_soon(self._monitor())
+
+    def clear_status(self):
+        self.good_frames = 0
+        self.bad_frames = 0
+        self.overflows = 0
+        self.out_beats = 0
+        self.out_in_frame = False
+
+    async def _monitor(self):
+        # sample mid cycle, values are stable
+        dut = self.dut
+        while True:
+            await FallingEdge(dut.clk)
+            if int(dut.rst.value):
+                continue
+            self.good_frames += int(dut.status_good_frame.value)
+            self.bad_frames += int(dut.status_bad_frame.value)
+            self.overflows += int(dut.status_overflow.value)
+            if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
+                self.out_beats += 1
+                self.out_in_frame = not int(dut.m_axis_tlast.value)
+            if self.pause_enable and self.frame_pause and int(dut.pause_ack.value):
+                assert not self.out_in_frame, "pause inside frame"
+            if not self.pause_enable:
+                assert not int(dut.pause_ack.value)
+
+    def frame_len(self, length):
+        # without tkeep only full beats are transferred
+        if self.keep_enable:
+            return length
+        return -(-length // self.byte_lanes) * self.byte_lanes
+
+    def check_frame(self, rx_frame, test_frame):
+        assert rx_frame.tdata == test_frame.tdata
+        assert rx_frame.tid == (test_frame.tid if self.id_enable else 0)
+        assert rx_frame.tdest == (test_frame.tdest if self.dest_enable else 0)
+        assert rx_frame.tuser == ((test_frame.tuser or 0) if self.user_enable else 0)
+
+    async def wait_empty(self):
+        for _ in range(8):
+            await RisingEdge(self.dut.clk)
+        assert int(self.dut.status_depth.value) == 0
+        assert int(self.dut.status_depth_commit.value) == 0
+
     def set_idle_generator(self, generator=None):
         if generator:
             self.source.set_pause_generator(generator())
@@ -72,6 +133,7 @@ class TB:
         self.dut.rst.value = 0
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
+        self.clear_status()
 
 
 async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None):
@@ -89,10 +151,12 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     test_frames = []
 
-    for test_data in [payload_data(x) for x in payload_lengths()]:
+    for test_data in [payload_data(tb.frame_len(x)) for x in payload_lengths()]:
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
         test_frame.tdest = cur_id
+        # bad frames are dropped with DROP_BAD_FRAME
+        test_frame.tuser = 0 if tb.drop_bad_frame else cur_id & 1
 
         test_frames.append(test_frame)
         await tb.source.send(test_frame)
@@ -102,12 +166,15 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     for test_frame in test_frames:
         rx_frame = await tb.sink.recv()
 
-        assert rx_frame.tdata == test_frame.tdata
-        assert rx_frame.tid == test_frame.tid
-        assert rx_frame.tdest == test_frame.tdest
-        assert not rx_frame.tuser
+        tb.check_frame(rx_frame, test_frame)
 
     assert tb.sink.empty()
+
+    await tb.wait_empty()
+
+    assert tb.good_frames == (len(test_frames) if tb.frame_fifo else 0)
+    assert tb.bad_frames == 0
+    assert tb.overflows == 0
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -123,7 +190,7 @@ async def run_test_tuser_assert(dut):
     test_frame = AxiStreamFrame(test_data, tuser=1)
     await tb.source.send(test_frame)
 
-    if dut.DROP_BAD_FRAME.value:
+    if tb.drop_bad_frame:
         for _ in range(64):
             await RisingEdge(dut.clk)
 
@@ -131,12 +198,87 @@ async def run_test_tuser_assert(dut):
         rx_frame = await tb.sink.recv()
 
         assert rx_frame.tdata == test_data
-        assert rx_frame.tuser
+        assert rx_frame.tuser == tb.user_enable
 
     assert tb.sink.empty()
 
+    await tb.wait_empty()
+
+    assert tb.bad_frames == tb.drop_bad_frame
+    assert tb.good_frames == (tb.frame_fifo and not tb.drop_bad_frame)
+
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+
+
+async def run_test_bad_frame_mix(dut, backpressure_inserter=None):
+
+    tb = TB(dut)
+
+    await tb.reset()
+
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    test_frames = []
+
+    for k in range(32):
+        test_data = bytearray(itertools.islice(itertools.cycle(range(k, k + 256)), tb.frame_len(8 + k)))
+        test_frame = AxiStreamFrame(test_data, tid=k, tdest=k, tuser=int(k % 3 == 1))
+        test_frames.append(test_frame)
+        await tb.source.send(test_frame)
+
+    for test_frame in test_frames:
+        if tb.drop_bad_frame and test_frame.tuser:
+            continue
+        rx_frame = await tb.sink.recv()
+        tb.check_frame(rx_frame, test_frame)
+
+    assert tb.sink.empty()
+
+    await tb.wait_empty()
+
+    bad = sum(1 for f in test_frames if f.tuser)
+    assert tb.bad_frames == (bad if tb.drop_bad_frame else 0)
+    if tb.frame_fifo:
+        assert tb.good_frames == len(test_frames) - tb.bad_frames
+
+
+async def run_test_status_depth(dut):
+
+    tb = TB(dut)
+
+    beat_words = tb.byte_lanes if tb.keep_enable else 1
+    ram_pipeline = int(dut.RAM_PIPELINE.value)
+    pipe_beats = ram_pipeline + 1
+    if int(dut.OUTPUT_FIFO_ENABLE.value):
+        # same as OUTPUT_FIFO_ADDR_WIDTH in RTL
+        out_fifo_aw = 3 if ram_pipeline < 2 else (ram_pipeline * 2 + 6).bit_length()
+        pipe_beats += 2**out_fifo_aw + 1
+
+    await tb.reset()
+
+    tb.sink.pause = True
+
+    beats = 64
+    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), beats * tb.byte_lanes))
+    test_frame = AxiStreamFrame(test_data)
+    await tb.source.send(test_frame)
+
+    for _ in range(beats * 2):
+        await RisingEdge(dut.clk)
+
+    # words in RAM, rest is in output pipeline
+    depth = int(dut.status_depth.value)
+    assert depth % beat_words == 0
+    assert (beats - pipe_beats) * beat_words <= depth <= beats * beat_words
+    assert int(dut.status_depth_commit.value) == depth
+
+    tb.sink.pause = False
+
+    rx_frame = await tb.sink.recv()
+    assert rx_frame.tdata == test_data
+
+    await tb.wait_empty()
 
 
 async def run_test_init_sink_pause(dut):
@@ -191,8 +333,7 @@ async def run_test_init_sink_pause_reset(dut):
 
     assert tb.sink.empty()
 
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await tb.wait_empty()
 
 
 async def run_test_pause(dut):
@@ -217,7 +358,16 @@ async def run_test_pause(dut):
     for _ in range(64):
         await RisingEdge(dut.clk)
 
-    assert tb.sink.idle()
+    if tb.pause_enable:
+        assert int(dut.pause_ack.value)
+        if tb.frame_pause:
+            assert tb.sink.idle()
+
+        # no transfer while paused
+        beats = tb.out_beats
+        for _ in range(16):
+            await RisingEdge(dut.clk)
+        assert tb.out_beats == beats
 
     dut.pause_req.value = 0
 
@@ -229,15 +379,16 @@ async def run_test_pause(dut):
 
     assert tb.sink.empty()
 
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await tb.wait_empty()
+
+    assert not int(dut.pause_ack.value)
 
 
 async def run_test_overflow(dut):
 
     tb = TB(dut)
 
-    depth = int(dut.DEPTH.value)
+    depth = tb.depth
     byte_lanes = tb.source.byte_lanes
 
     await tb.reset()
@@ -280,6 +431,8 @@ async def run_test_overflow(dut):
             rx_count += 1
 
         assert rx_count < count
+        # every frame is received or reported as overflow
+        assert rx_count + tb.overflows == count
 
     else:
         for _ in range(count):
@@ -288,17 +441,18 @@ async def run_test_overflow(dut):
             assert rx_frame.tdata == test_data
             assert not rx_frame.tuser
 
+        assert tb.overflows == 0
+
     assert tb.sink.empty()
 
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await tb.wait_empty()
 
 
 async def run_test_oversize(dut):
 
     tb = TB(dut)
 
-    depth = int(dut.DEPTH.value)
+    depth = tb.depth
     byte_lanes = tb.source.byte_lanes
 
     await tb.reset()
@@ -329,8 +483,9 @@ async def run_test_oversize(dut):
 
     assert tb.sink.empty()
 
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await tb.wait_empty()
+
+    assert tb.overflows == (tb.drop_oversize_frame or tb.mark_when_full)
 
 
 async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
@@ -350,11 +505,14 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     test_frames = []
 
     for _ in range(512):
-        length = random.randint(1, byte_lanes * 16)
+        length = tb.frame_len(random.randint(1, byte_lanes * 16))
         test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
         test_frame.tdest = cur_id
+        # marked frames carry tuser, keep good frames clean in drop/mark modes
+        if not (tb.drop_bad_frame or tb.drop_when_full or tb.mark_when_full):
+            test_frame.tuser = random.randint(0, 1)
 
         test_frames.append(test_frame)
         await tb.source.send(test_frame)
@@ -399,19 +557,22 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
         for test_frame in test_frames:
             rx_frame = await tb.sink.recv()
 
-            assert rx_frame.tdata == test_frame.tdata
-            assert rx_frame.tid == test_frame.tid
-            assert rx_frame.tdest == test_frame.tdest
-            assert not rx_frame.tuser
+            tb.check_frame(rx_frame, test_frame)
+
+        assert tb.overflows == 0
 
     assert tb.sink.empty()
 
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await tb.wait_empty()
 
 
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
+
+
+def random_pause():
+    while True:
+        yield int(random.random() < 0.5)
 
 
 def size_list():
@@ -429,10 +590,15 @@ if getattr(cocotb, "SIM_NAME", None):
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
         ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
     run_test = cocotb.test(test_params(run_test))
+
+    run_test_bad_frame_mix = cocotb.test(
+        cocotb.parametrize(("backpressure_inserter", [None, random_pause]))(run_test_bad_frame_mix)
+    )
+    run_test_status_depth = cocotb.test(run_test_status_depth)
 
     run_test_tuser_assert = cocotb.test(run_test_tuser_assert)
     run_test_init_sink_pause = cocotb.test(run_test_init_sink_pause)
@@ -443,7 +609,7 @@ if getattr(cocotb, "SIM_NAME", None):
 
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
     run_stress_test = cocotb.test(test_params(run_stress_test))
@@ -477,6 +643,39 @@ def test_axis_fifo(
     drop_when_full,
     mark_when_full,
 ):
+    run_sim(
+        request,
+        DATA_WIDTH=data_width,
+        RAM_PIPELINE=ram_pipeline,
+        OUTPUT_FIFO_ENABLE=output_fifo,
+        FRAME_FIFO=frame_fifo,
+        DROP_OVERSIZE_FRAME=drop_oversize_frame,
+        DROP_BAD_FRAME=drop_bad_frame,
+        DROP_WHEN_FULL=drop_when_full,
+        MARK_WHEN_FULL=mark_when_full,
+    )
+
+
+# configurations not covered by the main matrix
+EXTRA_CONFIGS = {
+    # non power of 2 tkeep width and depth
+    "w24": {"DATA_WIDTH": 24, "DEPTH": 3000, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "DROP_BAD_FRAME": 1},
+    "w24_out_fifo": {"DATA_WIDTH": 24, "DEPTH": 1000, "RAM_PIPELINE": 2, "OUTPUT_FIFO_ENABLE": 1},
+    "depth_npot": {"DATA_WIDTH": 32, "DEPTH": 3000, "MARK_WHEN_FULL": 1},
+    "no_keep": {"DATA_WIDTH": 32, "KEEP_ENABLE": 0, "DEPTH": 1024, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1},
+    "no_id_dest_user": {"DATA_WIDTH": 16, "ID_ENABLE": 0, "DEST_ENABLE": 0, "USER_ENABLE": 0},
+    "drop_when_full_only": {"DATA_WIDTH": 8, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "DROP_WHEN_FULL": 1},
+    "no_pause": {"DATA_WIDTH": 8, "PAUSE_ENABLE": 0},
+    "cycle_pause": {"DATA_WIDTH": 16, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "FRAME_PAUSE": 0},
+}
+
+
+@pytest.mark.parametrize("config", EXTRA_CONFIGS)
+def test_axis_fifo_extra(request, config):
+    run_sim(request, **EXTRA_CONFIGS[config])
+
+
+def run_sim(request, **overrides):
 
     dut = "axis_fifo"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -486,12 +685,15 @@ def test_axis_fifo(
         os.path.join(rtl_dir, f"{dut}.v"),
     ]
 
+    data_width = overrides.get("DATA_WIDTH", 8)
+    keep_width = (data_width + 7) // 8
+
     parameters = {}
 
     parameters["DATA_WIDTH"] = data_width
-    parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
-    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
-    parameters["DEPTH"] = 1024 * parameters["KEEP_WIDTH"]
+    parameters["KEEP_ENABLE"] = int(data_width > 8)
+    parameters["KEEP_WIDTH"] = keep_width
+    parameters["DEPTH"] = 1024 * keep_width
     parameters["LAST_ENABLE"] = 1
     parameters["ID_ENABLE"] = 1
     parameters["ID_WIDTH"] = 8
@@ -499,17 +701,19 @@ def test_axis_fifo(
     parameters["DEST_WIDTH"] = 8
     parameters["USER_ENABLE"] = 1
     parameters["USER_WIDTH"] = 1
-    parameters["RAM_PIPELINE"] = ram_pipeline
-    parameters["OUTPUT_FIFO_ENABLE"] = output_fifo
-    parameters["FRAME_FIFO"] = frame_fifo
+    parameters["RAM_PIPELINE"] = 1
+    parameters["OUTPUT_FIFO_ENABLE"] = 0
+    parameters["FRAME_FIFO"] = 0
     parameters["USER_BAD_FRAME_VALUE"] = 1
     parameters["USER_BAD_FRAME_MASK"] = 1
-    parameters["DROP_OVERSIZE_FRAME"] = drop_oversize_frame
-    parameters["DROP_BAD_FRAME"] = drop_bad_frame
-    parameters["DROP_WHEN_FULL"] = drop_when_full
-    parameters["MARK_WHEN_FULL"] = mark_when_full
+    parameters["DROP_OVERSIZE_FRAME"] = 0
+    parameters["DROP_BAD_FRAME"] = 0
+    parameters["DROP_WHEN_FULL"] = 0
+    parameters["MARK_WHEN_FULL"] = 0
     parameters["PAUSE_ENABLE"] = 1
     parameters["FRAME_PAUSE"] = 1
+
+    parameters.update(overrides)
 
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
