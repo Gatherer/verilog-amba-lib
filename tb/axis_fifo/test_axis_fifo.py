@@ -68,6 +68,11 @@ class TB:
         self.mark_when_full = int(dut.MARK_WHEN_FULL.value)
         self.pause_enable = int(dut.PAUSE_ENABLE.value)
         self.frame_pause = int(dut.FRAME_PAUSE.value)
+        # tstrb only exists on the sv wrapper
+        self.has_strb = hasattr(dut, "STRB_ENABLE")
+        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
+        if self.has_strb:
+            dut.s_axis_tstrb.value = Immediate(0)
 
         self.clear_status()
         cocotb.start_soon(self._monitor())
@@ -92,6 +97,8 @@ class TB:
             if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
                 self.out_beats += 1
                 self.out_in_frame = not int(dut.m_axis_tlast.value)
+                if self.has_strb and not self.strb_enable:
+                    assert int(dut.m_axis_tstrb.value) == int(dut.m_axis_tkeep.value), "tstrb not tkeep"
             if self.pause_enable and self.frame_pause and int(dut.pause_ack.value):
                 assert not self.out_in_frame, "pause inside frame"
             if not self.pause_enable:
@@ -279,6 +286,55 @@ async def run_test_status_depth(dut):
     assert rx_frame.tdata == test_data
 
     await tb.wait_empty()
+
+
+async def run_test_tstrb(dut):
+
+    tb = TB(dut)
+
+    if not tb.has_strb:
+        return
+
+    strb_mask = 2 ** len(dut.s_axis_tstrb) - 1
+    s_strb = []
+    m_strb = []
+
+    async def drive():
+        # new random tstrb each cycle, sampled on handshake
+        while True:
+            await RisingEdge(dut.clk)
+            dut.s_axis_tstrb.value = random.randint(0, strb_mask)
+
+    async def capture():
+        while True:
+            await FallingEdge(dut.clk)
+            if int(dut.s_axis_tvalid.value) and int(dut.s_axis_tready.value):
+                s_strb.append(int(dut.s_axis_tstrb.value))
+            if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
+                m_strb.append(int(dut.m_axis_tstrb.value))
+
+    await tb.reset()
+
+    cocotb.start_soon(drive())
+    cocotb.start_soon(capture())
+
+    test_frames = []
+
+    for k in range(8):
+        test_data = bytearray(itertools.islice(itertools.cycle(range(256)), tb.frame_len(16 + k)))
+        test_frame = AxiStreamFrame(test_data, tid=k, tdest=k, tuser=0)
+        test_frames.append(test_frame)
+        await tb.source.send(test_frame)
+
+    for test_frame in test_frames:
+        rx_frame = await tb.sink.recv()
+        tb.check_frame(rx_frame, test_frame)
+
+    await tb.wait_empty()
+
+    assert len(m_strb) == len(s_strb)
+    if tb.strb_enable:
+        assert m_strb == s_strb
 
 
 async def run_test_init_sink_pause(dut):
@@ -601,6 +657,7 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_status_depth = cocotb.test(run_test_status_depth)
 
     run_test_tuser_assert = cocotb.test(run_test_tuser_assert)
+    run_test_tstrb = cocotb.test(run_test_tstrb)
     run_test_init_sink_pause = cocotb.test(run_test_init_sink_pause)
     run_test_init_sink_pause_reset = cocotb.test(run_test_init_sink_pause_reset)
     run_test_pause = cocotb.test(run_test_pause)
@@ -618,12 +675,18 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
+
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH"],
+    "sv": [],
+}
 
 
 @pytest.mark.parametrize(
@@ -632,8 +695,10 @@ if tests_dir not in sys.path:
 )
 @pytest.mark.parametrize(("ram_pipeline", "output_fifo"), [(0, 0), (1, 0), (4, 0), (0, 1), (1, 1), (4, 1)])
 @pytest.mark.parametrize("data_width", [8, 16, 32, 64])
+@pytest.mark.parametrize("hdl", list(hdl_variants))
 def test_axis_fifo(
     request,
+    hdl,
     data_width,
     ram_pipeline,
     output_fifo,
@@ -645,6 +710,7 @@ def test_axis_fifo(
 ):
     run_sim(
         request,
+        hdl,
         DATA_WIDTH=data_width,
         RAM_PIPELINE=ram_pipeline,
         OUTPUT_FIFO_ENABLE=output_fifo,
@@ -667,23 +733,50 @@ EXTRA_CONFIGS = {
     "drop_when_full_only": {"DATA_WIDTH": 8, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "DROP_WHEN_FULL": 1},
     "no_pause": {"DATA_WIDTH": 8, "PAUSE_ENABLE": 0},
     "cycle_pause": {"DATA_WIDTH": 16, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "FRAME_PAUSE": 0},
+    # sv only: tstrb stored
+    "strb": {"DATA_WIDTH": 32, "STRB_ENABLE": 1},
+    "strb_out_fifo": {"DATA_WIDTH": 32, "STRB_ENABLE": 1, "RAM_PIPELINE": 2, "OUTPUT_FIFO_ENABLE": 1},
+    # sv only: wide tuser, bad frame marker wider than 32 bit
+    "wide_user": {
+        "DATA_WIDTH": 16,
+        "USER_WIDTH": 40,
+        "USER_BAD_FRAME_VALUE": "40'h1",
+        "USER_BAD_FRAME_MASK": "40'h1",
+        "FRAME_FIFO": 1,
+        "DROP_OVERSIZE_FRAME": 1,
+        "DROP_BAD_FRAME": 1,
+    },
 }
+
+# parameters only the sv variant has or supports
+SV_ONLY_CONFIGS = {"strb", "strb_out_fifo", "wide_user"}
 
 
 @pytest.mark.parametrize("config", EXTRA_CONFIGS)
-def test_axis_fifo_extra(request, config):
-    run_sim(request, **EXTRA_CONFIGS[config])
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_fifo_extra(request, hdl, config):
+    if hdl == "v" and config in SV_ONLY_CONFIGS:
+        pytest.skip("sv only")
+    run_sim(request, hdl, **EXTRA_CONFIGS[config])
 
 
-def run_sim(request, **overrides):
+def run_sim(request, hdl, **overrides):
 
     dut = "axis_fifo"
     module = os.path.splitext(os.path.basename(__file__))[0]
-    toplevel = dut
 
-    verilog_sources = [
-        os.path.join(rtl_dir, f"{dut}.v"),
-    ]
+    if hdl == "sv":
+        toplevel = f"{dut}_wrap"
+        verilog_sources = [
+            os.path.join(rtl_dir, "if", "axis_if.sv"),
+            os.path.join(rtl_dir, hdl, f"{dut}.sv"),
+            os.path.join(tests_dir, f"{toplevel}.sv"),
+        ]
+    else:
+        toplevel = dut
+        verilog_sources = [
+            os.path.join(rtl_dir, hdl, f"{dut}.v"),
+        ]
 
     data_width = overrides.get("DATA_WIDTH", 8)
     keep_width = (data_width + 7) // 8
@@ -715,6 +808,10 @@ def run_sim(request, **overrides):
 
     parameters.update(overrides)
 
+    # sv wrapper: KEEP_WIDTH is a localparam
+    if hdl == "sv":
+        del parameters["KEEP_WIDTH"]
+
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
     sim_build = os.path.join(results_dir, request.node.name.replace("[", "-").replace("]", ""))
@@ -725,7 +822,7 @@ def run_sim(request, **overrides):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
