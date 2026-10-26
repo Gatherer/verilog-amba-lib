@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2014-2023 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -113,9 +114,15 @@ initial begin
         $error("Error: byte size mismatch (instance %m)");
         $finish;
     end
+
+    if (S_BYTE_LANES % M_BYTE_LANES != 0 && M_BYTE_LANES % S_BYTE_LANES != 0) begin
+        $error("Error: bus width ratio must be an integer (instance %m)");
+        $finish;
+    end
 end
 
-wire [S_KEEP_WIDTH-1:0] s_axis_tkeep_int = S_KEEP_ENABLE ? s_axis_tkeep : {S_KEEP_WIDTH{1'b1}};
+// one keep bit per byte lane, also if S_KEEP_WIDTH is larger when disabled
+wire [S_BYTE_LANES-1:0] s_axis_tkeep_int = S_KEEP_ENABLE ? s_axis_tkeep[S_BYTE_LANES-1:0] : {S_BYTE_LANES{1'b1}};
 
 generate
 
@@ -141,23 +148,26 @@ end else if (M_BYTE_LANES > S_BYTE_LANES) begin : upsize
     localparam SEG_DATA_WIDTH = M_DATA_WIDTH / SEG_COUNT;
     localparam SEG_KEEP_WIDTH = M_BYTE_LANES / SEG_COUNT;
 
-    reg [$clog2(SEG_COUNT)-1:0] seg_reg = 0;
+    // control registers
+    reg [$clog2(SEG_COUNT)-1:0] seg_reg;
+    reg                         s_axis_tvalid_reg;
+    reg                         m_axis_tvalid_reg;
 
-    reg [S_DATA_WIDTH-1:0] s_axis_tdata_reg = {S_DATA_WIDTH{1'b0}};
-    reg [S_KEEP_WIDTH-1:0] s_axis_tkeep_reg = {S_KEEP_WIDTH{1'b0}};
-    reg s_axis_tvalid_reg = 1'b0;
-    reg s_axis_tlast_reg = 1'b0;
-    reg [ID_WIDTH-1:0] s_axis_tid_reg = {ID_WIDTH{1'b0}};
-    reg [DEST_WIDTH-1:0] s_axis_tdest_reg = {DEST_WIDTH{1'b0}};
-    reg [USER_WIDTH-1:0] s_axis_tuser_reg = {USER_WIDTH{1'b0}};
+    // datapath registers, no reset
+    reg [S_DATA_WIDTH-1:0]   s_axis_tdata_reg;
+    reg [S_BYTE_LANES-1:0]   s_axis_tkeep_reg;
+    reg                      s_axis_tlast_reg;
+    reg [ID_WIDTH-1:0]       s_axis_tid_reg;
+    reg [DEST_WIDTH-1:0]     s_axis_tdest_reg;
+    reg [USER_WIDTH-1:0]     s_axis_tuser_reg;
 
-    reg [M_DATA_WIDTH-1:0] m_axis_tdata_reg = {M_DATA_WIDTH{1'b0}};
-    reg [M_KEEP_WIDTH-1:0] m_axis_tkeep_reg = {M_KEEP_WIDTH{1'b0}};
-    reg m_axis_tvalid_reg = 1'b0;
-    reg m_axis_tlast_reg = 1'b0;
-    reg [ID_WIDTH-1:0] m_axis_tid_reg = {ID_WIDTH{1'b0}};
-    reg [DEST_WIDTH-1:0] m_axis_tdest_reg = {DEST_WIDTH{1'b0}};
-    reg [USER_WIDTH-1:0] m_axis_tuser_reg = {USER_WIDTH{1'b0}};
+    // tid, tdest and tuser are taken from the last input beat of a word
+    reg [M_DATA_WIDTH-1:0]   m_axis_tdata_reg;
+    reg [M_BYTE_LANES-1:0]   m_axis_tkeep_reg;
+    reg                      m_axis_tlast_reg;
+    reg [ID_WIDTH-1:0]       m_axis_tid_reg;
+    reg [DEST_WIDTH-1:0]     m_axis_tdest_reg;
+    reg [USER_WIDTH-1:0]     m_axis_tuser_reg;
 
     assign s_axis_tready = !s_axis_tvalid_reg;
 
@@ -177,7 +187,8 @@ end else if (M_BYTE_LANES > S_BYTE_LANES) begin : upsize
 
             if (seg_reg == 0) begin
                 m_axis_tdata_reg[seg_reg*SEG_DATA_WIDTH +: SEG_DATA_WIDTH] <= s_axis_tvalid_reg ? s_axis_tdata_reg : s_axis_tdata;
-                m_axis_tkeep_reg <= s_axis_tvalid_reg ? s_axis_tkeep_reg : s_axis_tkeep_int;
+                // first segment, clear keep of upper segments
+                m_axis_tkeep_reg <= {{M_BYTE_LANES-SEG_KEEP_WIDTH{1'b0}}, s_axis_tvalid_reg ? s_axis_tkeep_reg : s_axis_tkeep_int};
             end else begin
                 m_axis_tdata_reg[seg_reg*SEG_DATA_WIDTH +: SEG_DATA_WIDTH] <= s_axis_tdata;
                 m_axis_tkeep_reg[seg_reg*SEG_KEEP_WIDTH +: SEG_KEEP_WIDTH] <= s_axis_tkeep_int;
@@ -233,21 +244,24 @@ end else begin : downsize
     localparam SEG_DATA_WIDTH = S_DATA_WIDTH / SEG_COUNT;
     localparam SEG_KEEP_WIDTH = S_BYTE_LANES / SEG_COUNT;
 
-    reg [S_DATA_WIDTH-1:0] s_axis_tdata_reg = {S_DATA_WIDTH{1'b0}};
-    reg [S_KEEP_WIDTH-1:0] s_axis_tkeep_reg = {S_KEEP_WIDTH{1'b0}};
-    reg s_axis_tvalid_reg = 1'b0;
-    reg s_axis_tlast_reg = 1'b0;
-    reg [ID_WIDTH-1:0] s_axis_tid_reg = {ID_WIDTH{1'b0}};
-    reg [DEST_WIDTH-1:0] s_axis_tdest_reg = {DEST_WIDTH{1'b0}};
-    reg [USER_WIDTH-1:0] s_axis_tuser_reg = {USER_WIDTH{1'b0}};
+    // control registers
+    reg                      s_axis_tvalid_reg;
+    reg                      m_axis_tvalid_reg;
 
-    reg [M_DATA_WIDTH-1:0] m_axis_tdata_reg = {M_DATA_WIDTH{1'b0}};
-    reg [M_KEEP_WIDTH-1:0] m_axis_tkeep_reg = {M_KEEP_WIDTH{1'b0}};
-    reg m_axis_tvalid_reg = 1'b0;
-    reg m_axis_tlast_reg = 1'b0;
-    reg [ID_WIDTH-1:0] m_axis_tid_reg = {ID_WIDTH{1'b0}};
-    reg [DEST_WIDTH-1:0] m_axis_tdest_reg = {DEST_WIDTH{1'b0}};
-    reg [USER_WIDTH-1:0] m_axis_tuser_reg = {USER_WIDTH{1'b0}};
+    // datapath registers, no reset
+    reg [S_DATA_WIDTH-1:0]   s_axis_tdata_reg;
+    reg [S_BYTE_LANES-1:0]   s_axis_tkeep_reg;
+    reg                      s_axis_tlast_reg;
+    reg [ID_WIDTH-1:0]       s_axis_tid_reg;
+    reg [DEST_WIDTH-1:0]     s_axis_tdest_reg;
+    reg [USER_WIDTH-1:0]     s_axis_tuser_reg;
+
+    reg [M_DATA_WIDTH-1:0]   m_axis_tdata_reg;
+    reg [SEG_KEEP_WIDTH-1:0] m_axis_tkeep_reg;
+    reg                      m_axis_tlast_reg;
+    reg [ID_WIDTH-1:0]       m_axis_tid_reg;
+    reg [DEST_WIDTH-1:0]     m_axis_tdest_reg;
+    reg [USER_WIDTH-1:0]     m_axis_tuser_reg;
 
     assign s_axis_tready = !s_axis_tvalid_reg;
 
@@ -265,8 +279,8 @@ end else begin : downsize
         if (!m_axis_tvalid_reg || m_axis_tready) begin
             // output register empty
 
-            m_axis_tdata_reg <= s_axis_tvalid_reg ? s_axis_tdata_reg : s_axis_tdata;
-            m_axis_tkeep_reg <= s_axis_tvalid_reg ? s_axis_tkeep_reg : s_axis_tkeep_int;
+            m_axis_tdata_reg <= s_axis_tvalid_reg ? s_axis_tdata_reg[SEG_DATA_WIDTH-1:0] : s_axis_tdata[SEG_DATA_WIDTH-1:0];
+            m_axis_tkeep_reg <= s_axis_tvalid_reg ? s_axis_tkeep_reg[SEG_KEEP_WIDTH-1:0] : s_axis_tkeep_int[SEG_KEEP_WIDTH-1:0];
             m_axis_tlast_reg <= 1'b0;
             m_axis_tid_reg <= s_axis_tvalid_reg ? s_axis_tid_reg : s_axis_tid;
             m_axis_tdest_reg <= s_axis_tvalid_reg ? s_axis_tdest_reg : s_axis_tdest;
@@ -294,7 +308,7 @@ end else begin : downsize
 
                 m_axis_tvalid_reg <= 1'b1;
 
-                if (S_KEEP_ENABLE && (s_axis_tkeep_int >> SEG_KEEP_WIDTH) == 0) begin
+                if ((s_axis_tkeep_int >> SEG_KEEP_WIDTH) == 0) begin
                     s_axis_tvalid_reg <= 1'b0;
                     m_axis_tlast_reg <= s_axis_tlast;
                 end else begin

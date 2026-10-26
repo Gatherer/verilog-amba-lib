@@ -40,6 +40,11 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 
 
+class AxiStreamBusNoKeep(AxiStreamBus):
+    # tkeep disabled: byte size equals data width
+    _optional_signals = ("tvalid", "tready", "tlast", "tid", "tdest", "tuser")
+
+
 class TB:
     def __init__(self, dut):
         self.dut = dut
@@ -49,8 +54,21 @@ class TB:
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
-        self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
-        self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
+        if dut.S_KEEP_ENABLE.value:
+            self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
+        else:
+            bus = AxiStreamBusNoKeep.from_prefix(dut, "s_axis")
+            self.source = AxiStreamSource(bus, dut.clk, dut.rst, byte_lanes=1)
+
+        if dut.M_KEEP_ENABLE.value:
+            self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
+        else:
+            bus = AxiStreamBusNoKeep.from_prefix(dut, "m_axis")
+            self.sink = AxiStreamSink(bus, dut.clk, dut.rst, byte_lanes=1)
+
+        # tkeep disabled: drive zeros to verify it is ignored
+        if not dut.S_KEEP_ENABLE.value:
+            dut.s_axis_tkeep.value = 0
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -91,10 +109,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
         test_frame.tdest = cur_id
-
-        # set tkeep to all zeros when disabled to verify correct handling
-        if not dut.S_KEEP_ENABLE.value:
-            test_frame.tkeep = [0] * len(test_data)
+        test_frame.tuser = cur_id & 1
 
         test_frames.append(test_frame)
         await tb.source.send(test_frame)
@@ -104,10 +119,10 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     for test_frame in test_frames:
         rx_frame = await tb.sink.recv()
 
-        assert rx_frame.tdata == test_frame.tdata
+        assert list(rx_frame.tdata) == list(test_frame.tdata)
         assert rx_frame.tid == test_frame.tid
         assert rx_frame.tdest == test_frame.tdest
-        assert not rx_frame.tuser
+        assert rx_frame.tuser == test_frame.tuser
 
     assert tb.sink.empty()
 
@@ -121,13 +136,13 @@ async def run_test_tuser_assert(dut):
 
     await tb.reset()
 
-    test_data = bytearray(itertools.islice(itertools.cycle(range(256)), 32))
+    test_data = incrementing_payload(32)
     test_frame = AxiStreamFrame(test_data, tuser=1)
     await tb.source.send(test_frame)
 
     rx_frame = await tb.sink.recv()
 
-    assert rx_frame.tdata == test_data
+    assert list(rx_frame.tdata) == test_data
     assert rx_frame.tuser
 
     assert tb.sink.empty()
@@ -154,7 +169,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     for _ in range(128):
         length = random.randint(1, byte_lanes * 16)
-        test_data = bytearray(itertools.islice(itertools.cycle(range(256)), length))
+        test_data = incrementing_payload(length)
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
         test_frame.tdest = cur_id
@@ -167,7 +182,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     for test_frame in test_frames:
         rx_frame = await tb.sink.recv()
 
-        assert rx_frame.tdata == test_frame.tdata
+        assert list(rx_frame.tdata) == list(test_frame.tdata)
         assert rx_frame.tid == test_frame.tid
         assert rx_frame.tdest == test_frame.tdest
         assert not rx_frame.tuser
@@ -182,22 +197,35 @@ def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
 
+def random_pause():
+    while True:
+        yield int(random.random() < 0.5)
+
+
+def byte_size():
+    dut = cocotb.top
+    lanes = len(dut.s_axis_tkeep) if dut.S_KEEP_ENABLE.value else 1
+    return len(dut.s_axis_tdata) // lanes
+
+
 def size_list():
     data_width = max(len(cocotb.top.s_axis_tdata), len(cocotb.top.m_axis_tdata))
-    byte_width = data_width // 8
+    byte_width = data_width // byte_size()
     return list(range(1, byte_width * 4 + 1)) + [512] + [1] * 64
 
 
 def incrementing_payload(length):
-    return bytearray(itertools.islice(itertools.cycle(range(256)), length))
+    # fills upper bits too if bytes are wider than 8 bit
+    mask = 2 ** byte_size() - 1
+    return [(k * 0x0101) & mask for k in range(length)]
 
 
 if getattr(cocotb, "SIM_NAME", None):
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
-        ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("idle_inserter", [None, cycle_pause, random_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
     run_test = cocotb.test(test_params(run_test))
@@ -205,8 +233,8 @@ if getattr(cocotb, "SIM_NAME", None):
     run_test_tuser_assert = cocotb.test(run_test_tuser_assert)
 
     test_params = cocotb.parametrize(
-        ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("idle_inserter", [None, cycle_pause, random_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
     run_stress_test = cocotb.test(test_params(run_stress_test))
@@ -223,9 +251,7 @@ if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
 
-@pytest.mark.parametrize("m_data_width", [8, 16, 32])
-@pytest.mark.parametrize("s_data_width", [8, 16, 32])
-def test_axis_register(request, s_data_width, m_data_width):
+def run_sim(request, parameters):
     dut = "axis_adapter"
     module = os.path.splitext(os.path.basename(__file__))[0]
     toplevel = dut
@@ -234,14 +260,6 @@ def test_axis_register(request, s_data_width, m_data_width):
         os.path.join(rtl_dir, f"{dut}.v"),
     ]
 
-    parameters = {}
-
-    parameters["S_DATA_WIDTH"] = s_data_width
-    parameters["S_KEEP_ENABLE"] = int(parameters["S_DATA_WIDTH"] > 8)
-    parameters["S_KEEP_WIDTH"] = (parameters["S_DATA_WIDTH"] + 7) // 8
-    parameters["M_DATA_WIDTH"] = m_data_width
-    parameters["M_KEEP_ENABLE"] = int(parameters["M_DATA_WIDTH"] > 8)
-    parameters["M_KEEP_WIDTH"] = (parameters["M_DATA_WIDTH"] + 7) // 8
     parameters["ID_ENABLE"] = 1
     parameters["ID_WIDTH"] = 8
     parameters["DEST_ENABLE"] = 1
@@ -272,3 +290,40 @@ def test_axis_register(request, s_data_width, m_data_width):
         results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )
+
+
+# 24 bit gives a ratio of 3, skip non-integer ratios
+data_widths = [8, 16, 24, 32, 64]
+width_pairs = [(s, m) for s in data_widths for m in data_widths if s % m == 0 or m % s == 0]
+
+
+@pytest.mark.parametrize(("s_data_width", "m_data_width"), width_pairs)
+def test_axis_adapter(request, s_data_width, m_data_width):
+    parameters = {}
+
+    parameters["S_DATA_WIDTH"] = s_data_width
+    parameters["S_KEEP_ENABLE"] = int(parameters["S_DATA_WIDTH"] > 8)
+    parameters["S_KEEP_WIDTH"] = (parameters["S_DATA_WIDTH"] + 7) // 8
+    parameters["M_DATA_WIDTH"] = m_data_width
+    parameters["M_KEEP_ENABLE"] = int(parameters["M_DATA_WIDTH"] > 8)
+    parameters["M_KEEP_WIDTH"] = (parameters["M_DATA_WIDTH"] + 7) // 8
+
+    run_sim(request, parameters)
+
+
+# 16 bit bytes, tkeep disabled on one side, KEEP_WIDTH left at default
+@pytest.mark.parametrize(
+    ("s_data_width", "s_keep_enable", "m_data_width", "m_keep_enable"),
+    [(16, 0, 16, 0), (16, 0, 32, 1), (16, 0, 64, 1), (32, 1, 16, 0), (64, 1, 16, 0)],
+)
+def test_axis_adapter_byte16(request, s_data_width, s_keep_enable, m_data_width, m_keep_enable):
+    parameters = {}
+
+    parameters["S_DATA_WIDTH"] = s_data_width
+    parameters["S_KEEP_ENABLE"] = s_keep_enable
+    parameters["S_KEEP_WIDTH"] = s_data_width // 16 if s_keep_enable else (s_data_width + 7) // 8
+    parameters["M_DATA_WIDTH"] = m_data_width
+    parameters["M_KEEP_ENABLE"] = m_keep_enable
+    parameters["M_KEEP_WIDTH"] = m_data_width // 16 if m_keep_enable else (m_data_width + 7) // 8
+
+    run_sim(request, parameters)
