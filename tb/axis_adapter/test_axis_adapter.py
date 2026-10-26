@@ -34,7 +34,7 @@ import pytest
 import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import FallingEdge, RisingEdge
 from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
@@ -70,6 +70,35 @@ class TB:
         if not dut.S_KEEP_ENABLE.value:
             dut.s_axis_tkeep.value = 0
 
+        self.keep_enable = int(dut.M_KEEP_ENABLE.value)
+        self.id_enable = int(dut.ID_ENABLE.value)
+        self.dest_enable = int(dut.DEST_ENABLE.value)
+        self.user_enable = int(dut.USER_ENABLE.value)
+        # tstrb and LAST_ENABLE only exist on the sv wrapper
+        self.has_strb = hasattr(dut, "STRB_ENABLE")
+        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
+        self.last_enable = int(dut.LAST_ENABLE.value) if hasattr(dut, "LAST_ENABLE") else 1
+        if self.has_strb:
+            dut.s_axis_tstrb.value = Immediate(0)
+            cocotb.start_soon(self._monitor())
+
+    async def _monitor(self):
+        # disabled tstrb follows tkeep, disabled tlast is 0
+        dut = self.dut
+        while True:
+            await FallingEdge(dut.clk)
+            if int(dut.m_axis_tvalid.value):
+                if not self.strb_enable:
+                    assert int(dut.m_axis_tstrb.value) == int(dut.m_axis_tkeep.value), "tstrb not tkeep"
+                if not self.last_enable:
+                    assert not int(dut.m_axis_tlast.value), "tlast set"
+
+    def check_frame(self, rx_frame, test_frame):
+        assert list(rx_frame.tdata) == list(test_frame.tdata)
+        assert rx_frame.tid == (test_frame.tid if self.id_enable else 0)
+        assert rx_frame.tdest == (test_frame.tdest if self.dest_enable else 0)
+        assert rx_frame.tuser == ((test_frame.tuser or 0) if self.user_enable else 0)
+
     def set_idle_generator(self, generator=None):
         if generator:
             self.source.set_pause_generator(generator())
@@ -93,6 +122,10 @@ class TB:
 async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None):
 
     tb = TB(dut)
+
+    # frames need tlast
+    if not tb.last_enable:
+        return
 
     id_count = 2 ** len(tb.source.bus.tid)
 
@@ -118,11 +151,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 
     for test_frame in test_frames:
         rx_frame = await tb.sink.recv()
-
-        assert list(rx_frame.tdata) == list(test_frame.tdata)
-        assert rx_frame.tid == test_frame.tid
-        assert rx_frame.tdest == test_frame.tdest
-        assert rx_frame.tuser == test_frame.tuser
+        tb.check_frame(rx_frame, test_frame)
 
     assert tb.sink.empty()
 
@@ -133,6 +162,9 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
 async def run_test_tuser_assert(dut):
 
     tb = TB(dut)
+
+    if not tb.last_enable or not tb.user_enable:
+        return
 
     await tb.reset()
 
@@ -154,6 +186,9 @@ async def run_test_tuser_assert(dut):
 async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     tb = TB(dut)
+
+    if not tb.last_enable:
+        return
 
     byte_lanes = max(tb.source.byte_lanes, tb.sink.byte_lanes)
     id_count = 2 ** len(tb.source.bus.tid)
@@ -181,16 +216,116 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
     for test_frame in test_frames:
         rx_frame = await tb.sink.recv()
-
-        assert list(rx_frame.tdata) == list(test_frame.tdata)
-        assert rx_frame.tid == test_frame.tid
-        assert rx_frame.tdest == test_frame.tdest
-        assert not rx_frame.tuser
+        tb.check_frame(rx_frame, test_frame)
 
     assert tb.sink.empty()
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+
+
+def beat_bytes(dut, prefix, lanes, keep_enable):
+    # (byte, strb) of each kept byte lane
+    tdata = getattr(dut, f"{prefix}_tdata")
+    size = len(tdata) // lanes
+    data = int(tdata.value)
+    keep = int(getattr(dut, f"{prefix}_tkeep").value) if keep_enable else 2**lanes - 1
+    strb = int(getattr(dut, f"{prefix}_tstrb").value)
+    mask = 2**size - 1
+    return [((data >> (k * size)) & mask, (strb >> k) & 1) for k in range(lanes) if (keep >> k) & 1]
+
+
+async def run_test_tstrb(dut, idle_inserter=None, backpressure_inserter=None):
+
+    tb = TB(dut)
+
+    if not tb.strb_enable or not tb.last_enable:
+        return
+
+    s_lanes = tb.source.byte_lanes
+    m_lanes = tb.sink.byte_lanes
+    strb_mask = 2 ** len(dut.s_axis_tstrb) - 1
+    s_bytes = []
+    m_bytes = []
+
+    async def drive():
+        # new random tstrb each cycle, sampled on handshake
+        while True:
+            await RisingEdge(dut.clk)
+            dut.s_axis_tstrb.value = random.randint(0, strb_mask)
+
+    async def capture():
+        while True:
+            await FallingEdge(dut.clk)
+            if int(dut.s_axis_tvalid.value) and int(dut.s_axis_tready.value):
+                s_bytes.extend(beat_bytes(dut, "s_axis", s_lanes, tb.keep_enable))
+            if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
+                m_bytes.extend(beat_bytes(dut, "m_axis", m_lanes, tb.keep_enable))
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    cocotb.start_soon(drive())
+    cocotb.start_soon(capture())
+
+    test_frames = []
+
+    for length in size_list():
+        test_frame = AxiStreamFrame(incrementing_payload(length), tid=1, tdest=1, tuser=0)
+        test_frames.append(test_frame)
+        await tb.source.send(test_frame)
+
+    for test_frame in test_frames:
+        rx_frame = await tb.sink.recv()
+        tb.check_frame(rx_frame, test_frame)
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+    assert m_bytes == s_bytes
+
+
+async def run_test_no_last(dut, idle_inserter=None, backpressure_inserter=None):
+
+    tb = TB(dut)
+
+    if tb.last_enable:
+        return
+
+    m_lanes = tb.sink.byte_lanes
+    # full output words only, no tlast to flush a partial word
+    lanes = max(tb.source.byte_lanes, m_lanes)
+    m_bytes = []
+
+    async def capture():
+        while True:
+            await FallingEdge(dut.clk)
+            if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
+                m_bytes.extend(b for b, _ in beat_bytes(dut, "m_axis", m_lanes, tb.keep_enable))
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    cocotb.start_soon(capture())
+
+    test_data = []
+
+    for k in range(1, 9):
+        data = incrementing_payload(lanes * k)
+        test_data.extend(data)
+        # source drives tlast on the last beat, must be ignored
+        await tb.source.send(AxiStreamFrame(data, tid=k, tdest=k, tuser=k & 1))
+
+    await tb.source.wait()
+
+    for _ in range(64):
+        await RisingEdge(dut.clk)
+
+    assert m_bytes == test_data
 
 
 def cycle_pause():
@@ -239,33 +374,51 @@ if getattr(cocotb, "SIM_NAME", None):
 
     run_stress_test = cocotb.test(test_params(run_stress_test))
 
+    run_test_tstrb = cocotb.test(test_params(run_test_tstrb))
+
+    run_test_no_last = cocotb.test(test_params(run_test_no_last))
+
 
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH"],
+    "sv": [],
+}
 
-def run_sim(request, parameters):
+
+def run_sim(request, hdl, parameters):
     dut = "axis_adapter"
     module = os.path.splitext(os.path.basename(__file__))[0]
-    toplevel = dut
 
-    verilog_sources = [
-        os.path.join(rtl_dir, f"{dut}.v"),
-    ]
+    if hdl == "sv":
+        toplevel = f"{dut}_wrap"
+        verilog_sources = [
+            os.path.join(rtl_dir, "if", "axis_if.sv"),
+            os.path.join(rtl_dir, hdl, f"{dut}.sv"),
+            os.path.join(tests_dir, f"{toplevel}.sv"),
+        ]
+    else:
+        toplevel = dut
+        verilog_sources = [
+            os.path.join(rtl_dir, hdl, f"{dut}.v"),
+        ]
 
-    parameters["ID_ENABLE"] = 1
-    parameters["ID_WIDTH"] = 8
-    parameters["DEST_ENABLE"] = 1
-    parameters["DEST_WIDTH"] = 8
-    parameters["USER_ENABLE"] = 1
-    parameters["USER_WIDTH"] = 1
+    parameters.setdefault("ID_ENABLE", 1)
+    parameters.setdefault("ID_WIDTH", 8)
+    parameters.setdefault("DEST_ENABLE", 1)
+    parameters.setdefault("DEST_WIDTH", 8)
+    parameters.setdefault("USER_ENABLE", 1)
+    parameters.setdefault("USER_WIDTH", 1)
 
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
@@ -277,7 +430,7 @@ def run_sim(request, parameters):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
@@ -292,23 +445,34 @@ def run_sim(request, parameters):
     )
 
 
+def width_params(hdl, s_data_width, s_keep_enable, m_data_width, m_keep_enable, byte_width=8):
+    # sv: tkeep enable must match, single lane side gets KEEP_WIDTH 1
+    if hdl == "sv" and s_keep_enable != m_keep_enable:
+        s_keep_enable = m_keep_enable = 1
+
+    parameters = {}
+
+    parameters["S_DATA_WIDTH"] = s_data_width
+    parameters["S_KEEP_ENABLE"] = s_keep_enable
+    parameters["S_KEEP_WIDTH"] = s_data_width // byte_width if s_keep_enable else (s_data_width + 7) // 8
+    parameters["M_DATA_WIDTH"] = m_data_width
+    parameters["M_KEEP_ENABLE"] = m_keep_enable
+    parameters["M_KEEP_WIDTH"] = m_data_width // byte_width if m_keep_enable else (m_data_width + 7) // 8
+
+    return parameters
+
+
 # 24 bit gives a ratio of 3, skip non-integer ratios
 data_widths = [8, 16, 24, 32, 64]
 width_pairs = [(s, m) for s in data_widths for m in data_widths if s % m == 0 or m % s == 0]
 
 
 @pytest.mark.parametrize(("s_data_width", "m_data_width"), width_pairs)
-def test_axis_adapter(request, s_data_width, m_data_width):
-    parameters = {}
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_adapter(request, hdl, s_data_width, m_data_width):
+    parameters = width_params(hdl, s_data_width, int(s_data_width > 8), m_data_width, int(m_data_width > 8))
 
-    parameters["S_DATA_WIDTH"] = s_data_width
-    parameters["S_KEEP_ENABLE"] = int(parameters["S_DATA_WIDTH"] > 8)
-    parameters["S_KEEP_WIDTH"] = (parameters["S_DATA_WIDTH"] + 7) // 8
-    parameters["M_DATA_WIDTH"] = m_data_width
-    parameters["M_KEEP_ENABLE"] = int(parameters["M_DATA_WIDTH"] > 8)
-    parameters["M_KEEP_WIDTH"] = (parameters["M_DATA_WIDTH"] + 7) // 8
-
-    run_sim(request, parameters)
+    run_sim(request, hdl, parameters)
 
 
 # 16 bit bytes, tkeep disabled on one side, KEEP_WIDTH left at default
@@ -316,14 +480,39 @@ def test_axis_adapter(request, s_data_width, m_data_width):
     ("s_data_width", "s_keep_enable", "m_data_width", "m_keep_enable"),
     [(16, 0, 16, 0), (16, 0, 32, 1), (16, 0, 64, 1), (32, 1, 16, 0), (64, 1, 16, 0)],
 )
-def test_axis_adapter_byte16(request, s_data_width, s_keep_enable, m_data_width, m_keep_enable):
-    parameters = {}
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_adapter_byte16(request, hdl, s_data_width, s_keep_enable, m_data_width, m_keep_enable):
+    parameters = width_params(hdl, s_data_width, s_keep_enable, m_data_width, m_keep_enable, 16)
 
-    parameters["S_DATA_WIDTH"] = s_data_width
-    parameters["S_KEEP_ENABLE"] = s_keep_enable
-    parameters["S_KEEP_WIDTH"] = s_data_width // 16 if s_keep_enable else (s_data_width + 7) // 8
-    parameters["M_DATA_WIDTH"] = m_data_width
-    parameters["M_KEEP_ENABLE"] = m_keep_enable
-    parameters["M_KEEP_WIDTH"] = m_data_width // 16 if m_keep_enable else (m_data_width + 7) // 8
+    run_sim(request, hdl, parameters)
 
-    run_sim(request, parameters)
+
+# configurations not covered by the width matrix
+EXTRA_CONFIGS = {
+    "no_id_dest_user_up": (8, 32, {"ID_ENABLE": 0, "DEST_ENABLE": 0, "USER_ENABLE": 0}),
+    "no_id_dest_user_down": (32, 8, {"ID_ENABLE": 0, "DEST_ENABLE": 0, "USER_ENABLE": 0}),
+    # sv only: tstrb
+    "strb_bypass": (32, 32, {"STRB_ENABLE": 1}),
+    "strb_up": (8, 32, {"STRB_ENABLE": 1}),
+    "strb_down": (64, 16, {"STRB_ENABLE": 1}),
+    # sv only: no tlast
+    "no_last_bypass": (32, 32, {"LAST_ENABLE": 0}),
+    "no_last_up": (16, 64, {"LAST_ENABLE": 0}),
+    "no_last_down": (32, 8, {"LAST_ENABLE": 0}),
+}
+
+# parameters only the sv variant has
+SV_ONLY_CONFIGS = {k for k in EXTRA_CONFIGS if k.startswith(("strb", "no_last"))}
+
+
+@pytest.mark.parametrize("config", EXTRA_CONFIGS)
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_adapter_extra(request, hdl, config):
+    if hdl == "v" and config in SV_ONLY_CONFIGS:
+        pytest.skip("sv only")
+
+    s_data_width, m_data_width, overrides = EXTRA_CONFIGS[config]
+    parameters = width_params(hdl, s_data_width, int(s_data_width > 8), m_data_width, int(m_data_width > 8))
+    parameters.update(overrides)
+
+    run_sim(request, hdl, parameters)
