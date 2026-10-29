@@ -129,7 +129,7 @@ module {{name}} #
      */
     input  wire                     enable,
     input  wire                     drop,
-    input  wire [{{cn-1}}:0]               select
+    input  wire [{{[cn,1]|max-1}}:0]               select
 );
 
 axis_demux #(
