@@ -35,27 +35,47 @@ import pytest
 import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import FallingEdge, RisingEdge
 from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
+
+
+class AxiStreamBusNoLast(AxiStreamBus):
+    # sv: disabled tlast is 0, sink ends a frame on every beat
+    _optional_signals = ("tvalid", "tready", "tkeep", "tid", "tdest", "tuser")
 
 
 class TB:
     def __init__(self, dut):
         self.dut = dut
 
-        ports = int(os.getenv("PORTS"))
+        self.ports = ports = int(os.getenv("PORTS"))
 
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
+        self.last_enable = int(dut.LAST_ENABLE.value)
+        # tstrb only exists on the sv wrapper
+        self.sv_no_last = hasattr(dut, "STRB_ENABLE") and not self.last_enable
+        m_bus = AxiStreamBusNoLast if self.sv_no_last else AxiStreamBus
+
         self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
-        self.sink = [
-            AxiStreamSink(AxiStreamBus.from_prefix(dut, f"m{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)
-        ]
+        self.sink = [AxiStreamSink(m_bus.from_prefix(dut, f"m{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)]
+
+        if self.sv_no_last:
+            cocotb.start_soon(self._monitor())
+
+    async def _monitor(self):
+        # disabled tlast is 0
+        dut = self.dut
+        while True:
+            await FallingEdge(dut.clk)
+            for k in range(self.ports):
+                if int(getattr(dut, f"m{k:02d}_axis_tvalid").value):
+                    assert not int(getattr(dut, f"m{k:02d}_axis_tlast").value), "tlast set"
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -81,6 +101,10 @@ class TB:
 async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=None, backpressure_inserter=None):
 
     tb = TB(dut)
+
+    # frames need tlast
+    if not tb.last_enable:
+        return
 
     id_count = 2 ** len(tb.source.bus.tid)
 
@@ -120,6 +144,43 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     await RisingEdge(dut.clk)
 
 
+async def run_test_no_last(dut, idle_inserter=None, backpressure_inserter=None):
+    # every beat is a frame, all outputs get the same beats
+
+    tb = TB(dut)
+
+    if tb.last_enable:
+        return
+
+    lanes = tb.source.byte_lanes
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    test_data = bytearray()
+    beats = 0
+
+    for k in range(32):
+        data = incrementing_payload(random.randint(1, lanes * 4))
+        test_data += data
+        beats += -(-len(data) // lanes)
+        await tb.source.send(AxiStreamFrame(data, tid=k, tdest=k, tuser=k & 1))
+
+    for sink in tb.sink:
+        rx_data = bytearray()
+        for _ in range(beats):
+            rx_data += (await sink.recv()).tdata
+        assert rx_data == test_data
+
+    for sink in tb.sink:
+        assert sink.empty()
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
@@ -150,6 +211,13 @@ if getattr(cocotb, "SIM_NAME", None):
 
     run_test = cocotb.test(test_params(run_test))
 
+    run_test_no_last = cocotb.test(
+        cocotb.parametrize(
+            ("idle_inserter", [None, cycle_pause]),
+            ("backpressure_inserter", [None, random_pause]),
+        )(run_test_no_last)
+    )
+
 
 # cocotb runner
 
@@ -172,6 +240,18 @@ hdl_variants = {
 @pytest.mark.parametrize("ports", range(1, 5))
 @pytest.mark.parametrize("hdl", list(hdl_variants))
 def test_axis_broadcast(request, hdl, ports, data_width):
+    run_sim(request, hdl, ports, data_width, 1)
+
+
+# no tlast, every beat is a frame
+@pytest.mark.parametrize("data_width", [8, 32])
+@pytest.mark.parametrize("ports", [1, 3])
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_broadcast_no_last(request, hdl, ports, data_width):
+    run_sim(request, hdl, ports, data_width, 0)
+
+
+def run_sim(request, hdl, ports, data_width, last_enable):
     dut = "axis_broadcast"
     wrapper = f"{dut}_wrap_{ports}"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -197,6 +277,7 @@ def test_axis_broadcast(request, hdl, ports, data_width):
     # sv wrapper: KEEP_WIDTH is a localparam
     if hdl == "v":
         parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    parameters["LAST_ENABLE"] = last_enable
     parameters["ID_ENABLE"] = 1
     parameters["ID_WIDTH"] = 8
     parameters["DEST_ENABLE"] = 1

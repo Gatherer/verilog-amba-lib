@@ -32,7 +32,7 @@ THE SOFTWARE.
 /*
  * AXI4-Stream FIFO
  * widths and enables are taken from s_axis
- * disabled tstrb follows tkeep
+ * disabled tstrb follows tkeep, disabled tlast is 0
  */
 module axis_fifo #(
     // FIFO depth in words
@@ -501,10 +501,11 @@ end
 if (LAST_ENABLE) begin : g_m_last
     assign m_tlast = m_axis_out[LAST_OFFSET];
 end else begin : g_m_no_last
+    // every beat ends a frame
     assign m_tlast = 1'b1;
 end
 
-assign m_axis.tlast = m_tlast;
+assign m_axis.tlast = LAST_ENABLE && m_tlast;
 
 if (ID_ENABLE) begin : g_m_id
     assign m_axis.tid = m_axis_out[ID_OFFSET +: ID_WIDTH];

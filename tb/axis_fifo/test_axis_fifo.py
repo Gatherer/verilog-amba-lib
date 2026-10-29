@@ -40,6 +40,11 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 
 
+class AxiStreamBusNoLast(AxiStreamBus):
+    # sv: disabled tlast is 0, sink ends a frame on every beat
+    _optional_signals = ("tvalid", "tready", "tkeep", "tid", "tdest", "tuser")
+
+
 class TB:
     def __init__(self, dut):
         self.dut = dut
@@ -49,8 +54,15 @@ class TB:
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
+        # tstrb only exists on the sv wrapper
+        self.has_strb = hasattr(dut, "STRB_ENABLE")
+        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
+        self.last_enable = int(dut.LAST_ENABLE.value)
+        self.sv_no_last = self.has_strb and not self.last_enable
+
+        m_bus = (AxiStreamBusNoLast if self.sv_no_last else AxiStreamBus).from_prefix(dut, "m_axis")
         self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
-        self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.clk, dut.rst)
+        self.sink = AxiStreamSink(m_bus, dut.clk, dut.rst)
 
         dut.pause_req.value = Immediate(0)
 
@@ -68,9 +80,6 @@ class TB:
         self.mark_when_full = int(dut.MARK_WHEN_FULL.value)
         self.pause_enable = int(dut.PAUSE_ENABLE.value)
         self.frame_pause = int(dut.FRAME_PAUSE.value)
-        # tstrb only exists on the sv wrapper
-        self.has_strb = hasattr(dut, "STRB_ENABLE")
-        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
         if self.has_strb:
             dut.s_axis_tstrb.value = Immediate(0)
 
@@ -96,7 +105,10 @@ class TB:
             self.overflows += int(dut.status_overflow.value)
             if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
                 self.out_beats += 1
-                self.out_in_frame = not int(dut.m_axis_tlast.value)
+                # without tlast every beat is a frame
+                self.out_in_frame = self.last_enable and not int(dut.m_axis_tlast.value)
+                if self.sv_no_last:
+                    assert not int(dut.m_axis_tlast.value), "tlast set"
                 if self.has_strb and not self.strb_enable:
                     assert int(dut.m_axis_tstrb.value) == int(dut.m_axis_tkeep.value), "tstrb not tkeep"
             if self.pause_enable and self.frame_pause and int(dut.pause_ack.value):
@@ -622,6 +634,90 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
     await tb.wait_empty()
 
 
+async def recv_beats(tb, count):
+    # without tlast every beat is a frame
+    beats = []
+    for _ in range(count):
+        rx_frame = await tb.sink.recv()
+        beats.append((bytes(rx_frame.tdata), rx_frame.tid, rx_frame.tdest, rx_frame.tuser))
+    return beats
+
+
+def check_beats(rx_beats, expected):
+    # report first mismatch, lists are long
+    for k, (rx, exp) in enumerate(zip(rx_beats, expected, strict=False)):
+        assert rx == exp, f"beat {k}: {rx} != {exp}"
+    assert len(rx_beats) == len(expected)
+
+
+def split_beats(tb, test_frame):
+    # expected output beats, sideband repeated on every beat
+    tid = (test_frame.tid or 0) if tb.id_enable else 0
+    tdest = (test_frame.tdest or 0) if tb.dest_enable else 0
+    tuser = (test_frame.tuser or 0) if tb.user_enable else 0
+    data = bytes(test_frame.tdata)
+    lanes = tb.byte_lanes
+    return [(data[k : k + lanes], tid, tdest, tuser) for k in range(0, len(data), lanes)]
+
+
+async def run_test_no_last(dut, idle_inserter=None, backpressure_inserter=None):
+
+    tb = TB(dut)
+
+    id_count = 2 ** len(tb.source.bus.tid)
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    expected = []
+
+    for k in range(64):
+        length = tb.frame_len(random.randint(1, tb.byte_lanes * 4))
+        test_data = bytearray(itertools.islice(itertools.cycle(range(k, k + 256)), length))
+        test_frame = AxiStreamFrame(test_data, tid=k % id_count, tdest=k % id_count, tuser=k & 1)
+        expected += split_beats(tb, test_frame)
+        await tb.source.send(test_frame)
+
+    check_beats(await recv_beats(tb, len(expected)), expected)
+
+    assert tb.sink.empty()
+
+    await tb.wait_empty()
+
+
+async def run_test_no_last_pause(dut):
+
+    tb = TB(dut)
+
+    await tb.reset()
+
+    test_frame = AxiStreamFrame(bytearray(itertools.islice(itertools.cycle(range(256)), 256 * tb.byte_lanes)))
+    await tb.source.send(test_frame)
+
+    for _ in range(20):
+        await RisingEdge(dut.clk)
+
+    dut.pause_req.value = 1
+
+    for _ in range(16):
+        await RisingEdge(dut.clk)
+
+    # every beat is a frame, frame pause also stops within the stream
+    assert int(dut.pause_ack.value)
+    beats = tb.out_beats
+    for _ in range(16):
+        await RisingEdge(dut.clk)
+    assert tb.out_beats == beats
+
+    dut.pause_req.value = 0
+
+    check_beats(await recv_beats(tb, 256), split_beats(tb, test_frame))
+
+    await tb.wait_empty()
+
+
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
@@ -642,6 +738,10 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
+    # frame based tests need tlast
+    no_last = not int(os.getenv("PARAM_LAST_ENABLE", "1"))
+    frame_test = cocotb.test(skip=no_last)
+
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
@@ -649,27 +749,33 @@ if getattr(cocotb, "SIM_NAME", None):
         ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
-    run_test = cocotb.test(test_params(run_test))
+    run_test = frame_test(test_params(run_test))
 
-    run_test_bad_frame_mix = cocotb.test(
+    run_test_bad_frame_mix = frame_test(
         cocotb.parametrize(("backpressure_inserter", [None, random_pause]))(run_test_bad_frame_mix)
     )
-    run_test_status_depth = cocotb.test(run_test_status_depth)
+    run_test_status_depth = frame_test(run_test_status_depth)
 
-    run_test_tuser_assert = cocotb.test(run_test_tuser_assert)
-    run_test_tstrb = cocotb.test(run_test_tstrb)
-    run_test_init_sink_pause = cocotb.test(run_test_init_sink_pause)
+    run_test_tuser_assert = frame_test(run_test_tuser_assert)
+    run_test_tstrb = frame_test(run_test_tstrb)
+    run_test_init_sink_pause = frame_test(run_test_init_sink_pause)
     run_test_init_sink_pause_reset = cocotb.test(run_test_init_sink_pause_reset)
-    run_test_pause = cocotb.test(run_test_pause)
-    run_test_overflow = cocotb.test(run_test_overflow)
-    run_test_oversize = cocotb.test(run_test_oversize)
+    run_test_pause = frame_test(run_test_pause)
+    run_test_overflow = frame_test(run_test_overflow)
+    run_test_oversize = frame_test(run_test_oversize)
 
     test_params = cocotb.parametrize(
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
-    run_stress_test = cocotb.test(test_params(run_stress_test))
+    run_stress_test = frame_test(test_params(run_stress_test))
+
+    # LAST_ENABLE = 0 only
+    no_last_test = cocotb.test(skip=not no_last)
+
+    run_test_no_last = no_last_test(test_params(run_test_no_last))
+    run_test_no_last_pause = no_last_test(run_test_no_last_pause)
 
 
 # cocotb runner
@@ -733,6 +839,10 @@ EXTRA_CONFIGS = {
     "drop_when_full_only": {"DATA_WIDTH": 8, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "DROP_WHEN_FULL": 1},
     "no_pause": {"DATA_WIDTH": 8, "PAUSE_ENABLE": 0},
     "cycle_pause": {"DATA_WIDTH": 16, "FRAME_FIFO": 1, "DROP_OVERSIZE_FRAME": 1, "FRAME_PAUSE": 0},
+    # no tlast, frame pause stops after every beat
+    "no_last": {"DATA_WIDTH": 8, "LAST_ENABLE": 0},
+    "no_last_w32": {"DATA_WIDTH": 32, "LAST_ENABLE": 0, "FRAME_PAUSE": 0, "RAM_PIPELINE": 2},
+    "no_last_out_fifo": {"DATA_WIDTH": 16, "LAST_ENABLE": 0, "RAM_PIPELINE": 4, "OUTPUT_FIFO_ENABLE": 1},
     # sv only: tstrb stored
     "strb": {"DATA_WIDTH": 32, "STRB_ENABLE": 1},
     "strb_out_fifo": {"DATA_WIDTH": 32, "STRB_ENABLE": 1, "RAM_PIPELINE": 2, "OUTPUT_FIFO_ENABLE": 1},

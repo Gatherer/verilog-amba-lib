@@ -41,6 +41,11 @@ from cocotb_tools.runner import get_runner
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 
 
+class AxiStreamBusNoLast(AxiStreamBus):
+    # sv: disabled tlast is 0, sink ends a frame on every beat
+    _optional_signals = ("tvalid", "tready", "tkeep", "tid", "tdest", "tuser")
+
+
 class TB:
     def __init__(self, dut):
         self.dut = dut
@@ -54,8 +59,15 @@ class TB:
         cocotb.start_soon(Clock(dut.s_clk, s_clk, unit="ns").start())
         cocotb.start_soon(Clock(dut.m_clk, m_clk, unit="ns").start())
 
+        # tstrb only exists on the sv wrapper
+        self.has_strb = hasattr(dut, "STRB_ENABLE")
+        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
+        self.last_enable = int(dut.LAST_ENABLE.value)
+        self.sv_no_last = self.has_strb and not self.last_enable
+
+        m_bus = (AxiStreamBusNoLast if self.sv_no_last else AxiStreamBus).from_prefix(dut, "m_axis")
         self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.s_clk, dut.s_rst)
-        self.sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), dut.m_clk, dut.m_rst)
+        self.sink = AxiStreamSink(m_bus, dut.m_clk, dut.m_rst)
 
         dut.s_pause_req.value = Immediate(0)
         dut.m_pause_req.value = Immediate(0)
@@ -75,9 +87,6 @@ class TB:
         self.mark_when_full = int(dut.MARK_WHEN_FULL.value)
         self.pause_enable = int(dut.PAUSE_ENABLE.value)
         self.frame_pause = int(dut.FRAME_PAUSE.value)
-        # tstrb only exists on the sv wrapper
-        self.has_strb = hasattr(dut, "STRB_ENABLE")
-        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
         if self.has_strb:
             dut.s_axis_tstrb.value = Immediate(0)
 
@@ -120,7 +129,10 @@ class TB:
             self.m_overflows += int(dut.m_status_overflow.value)
             if int(dut.m_axis_tvalid.value) and int(dut.m_axis_tready.value):
                 self.out_beats += 1
-                self.out_in_frame = not int(dut.m_axis_tlast.value)
+                # without tlast every beat is a frame
+                self.out_in_frame = self.last_enable and not int(dut.m_axis_tlast.value)
+                if self.sv_no_last:
+                    assert not int(dut.m_axis_tlast.value), "tlast set"
                 if self.has_strb and not self.strb_enable:
                     assert int(dut.m_axis_tstrb.value) == int(dut.m_axis_tkeep.value), "tstrb not tkeep"
             if self.pause_enable and self.frame_pause and int(dut.m_pause_ack.value):

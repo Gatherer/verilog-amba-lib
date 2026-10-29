@@ -32,7 +32,7 @@ THE SOFTWARE.
 /*
  * AXI4-Stream broadcaster
  * widths and enables are taken from s_axis
- * disabled tstrb follows tkeep
+ * disabled tstrb follows tkeep, disabled tlast is 0
  */
 module axis_broadcast #(
     // number of AXI stream outputs
@@ -126,7 +126,7 @@ for (genvar n = 0; n < M_COUNT; n++) begin : g_m_axis
     assign m_axis[n].tdata  = out_reg.tdata;
     assign m_axis[n].tkeep  = m_tkeep;
     assign m_axis[n].tstrb  = STRB_ENABLE ? out_reg.tstrb : m_tkeep;
-    assign m_axis[n].tlast  = LAST_ENABLE ? out_reg.tlast : 1'b1;
+    assign m_axis[n].tlast  = LAST_ENABLE ? out_reg.tlast : 1'b0;
     assign m_axis[n].tid    = ID_ENABLE   ? out_reg.tid   : '0;
     assign m_axis[n].tdest  = DEST_ENABLE ? out_reg.tdest : '0;
     assign m_axis[n].tuser  = USER_ENABLE ? out_reg.tuser : '0;
