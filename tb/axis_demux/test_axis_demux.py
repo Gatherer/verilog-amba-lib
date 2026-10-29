@@ -35,24 +35,41 @@ import pytest
 import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import FallingEdge, RisingEdge
 from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
+
+
+class AxiStreamBusNoLast(AxiStreamBus):
+    # tlast disabled: tb holds it at 0
+    _optional_signals = ("tvalid", "tready", "tkeep", "tid", "tdest", "tuser")
 
 
 class TB:
     def __init__(self, dut):
         self.dut = dut
 
-        ports = len(dut.axis_demux_inst.m_axis_tvalid)
+        self.ports = ports = int(os.getenv("PORTS"))
 
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
 
         cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
 
-        self.source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), dut.clk, dut.rst)
+        # tstrb and LAST_ENABLE only exist on the sv wrapper
+        self.has_strb = hasattr(dut, "STRB_ENABLE")
+        self.strb_enable = int(dut.STRB_ENABLE.value) if self.has_strb else 0
+        self.last_enable = int(dut.LAST_ENABLE.value) if hasattr(dut, "LAST_ENABLE") else 1
+
+        if self.last_enable:
+            bus = AxiStreamBus.from_prefix(dut, "s_axis")
+        else:
+            # every beat must be a frame without tlast
+            bus = AxiStreamBusNoLast.from_prefix(dut, "s_axis")
+            dut.s_axis_tlast.value = Immediate(0)
+
+        self.source = AxiStreamSource(bus, dut.clk, dut.rst)
         self.sink = [
             AxiStreamSink(AxiStreamBus.from_prefix(dut, f"m{k:02d}_axis"), dut.clk, dut.rst) for k in range(ports)
         ]
@@ -60,6 +77,23 @@ class TB:
         dut.enable.value = Immediate(0)
         dut.drop.value = Immediate(0)
         dut.select.value = Immediate(0)
+
+        if self.has_strb:
+            dut.s_axis_tstrb.value = Immediate(0)
+            cocotb.start_soon(self._monitor())
+
+    async def _monitor(self):
+        # disabled tstrb follows tkeep, disabled tlast is 0
+        dut = self.dut
+        while True:
+            await FallingEdge(dut.clk)
+            for k in range(self.ports):
+                if int(getattr(dut, f"m{k:02d}_axis_tvalid").value):
+                    tkeep = int(getattr(dut, f"m{k:02d}_axis_tkeep").value)
+                    if not self.strb_enable:
+                        assert int(getattr(dut, f"m{k:02d}_axis_tstrb").value) == tkeep, "tstrb not tkeep"
+                    if not self.last_enable:
+                        assert not int(getattr(dut, f"m{k:02d}_axis_tlast").value), "tlast set"
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -87,6 +121,10 @@ async def run_test(
 ):
 
     tb = TB(dut)
+
+    # frames need tlast
+    if not tb.last_enable:
+        return
 
     id_width = len(tb.source.bus.tid)
     id_count = 2**id_width
@@ -138,6 +176,9 @@ async def run_test_switch(dut, idle_inserter=None, backpressure_inserter=None):
     # random port per frame, invalid ports, drop, enable toggling, select change mid frame
 
     tb = TB(dut)
+
+    if not tb.last_enable:
+        return
 
     tdest_route = int(os.getenv("PARAM_TDEST_ROUTE"))
 
@@ -214,6 +255,113 @@ async def run_test_switch(dut, idle_inserter=None, backpressure_inserter=None):
     enable_cr.cancel()
 
 
+async def run_test_tstrb(dut, idle_inserter=None, backpressure_inserter=None, port=0):
+    # random tstrb per cycle, (tdata, tstrb) must reach the selected port unchanged
+
+    tb = TB(dut)
+
+    if not tb.strb_enable or not tb.last_enable:
+        return
+
+    dest_width = len(tb.sink[0].bus.tdest)
+    strb_mask = 2 ** len(dut.s_axis_tstrb) - 1
+    s_beats = []
+    m_beats = []
+
+    def beat(prefix):
+        return (int(getattr(dut, f"{prefix}_tdata").value), int(getattr(dut, f"{prefix}_tstrb").value))
+
+    async def drive():
+        while True:
+            await RisingEdge(dut.clk)
+            dut.s_axis_tstrb.value = random.randint(0, strb_mask)
+
+    async def capture():
+        prefix = f"m{port:02d}_axis"
+        while True:
+            await FallingEdge(dut.clk)
+            if int(dut.s_axis_tvalid.value) and int(dut.s_axis_tready.value):
+                s_beats.append(beat("s_axis"))
+            if int(getattr(dut, f"{prefix}_tvalid").value) and int(getattr(dut, f"{prefix}_tready").value):
+                m_beats.append(beat(prefix))
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    dut.enable.value = Immediate(1)
+    dut.select.value = Immediate(port)
+
+    cocotb.start_soon(drive())
+    cocotb.start_soon(capture())
+
+    test_frames = []
+
+    for length in size_list():
+        test_frame = AxiStreamFrame(incrementing_payload(length), tid=1, tdest=port << dest_width, tuser=0)
+        test_frames.append(test_frame)
+        await tb.source.send(test_frame)
+
+    for test_frame in test_frames:
+        rx_frame = await tb.sink[port].recv()
+        assert rx_frame.tdata == test_frame.tdata
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+    assert m_beats == s_beats
+
+
+async def run_test_no_last(dut, idle_inserter=None, backpressure_inserter=None):
+    # every beat is a frame, port may change after each beat
+
+    tb = TB(dut)
+
+    if tb.last_enable:
+        return
+
+    dest_width = len(tb.sink[0].bus.tdest)
+    lanes = len(dut.s_axis_tkeep)
+    m_bytes = [[] for _ in tb.sink]
+
+    async def capture():
+        while True:
+            await FallingEdge(dut.clk)
+            for k in range(tb.ports):
+                prefix = f"m{k:02d}_axis"
+                if int(getattr(dut, f"{prefix}_tvalid").value) and int(getattr(dut, f"{prefix}_tready").value):
+                    data = int(getattr(dut, f"{prefix}_tdata").value)
+                    m_bytes[k].extend((data >> (8 * n)) & 0xFF for n in range(lanes))
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    dut.enable.value = Immediate(1)
+
+    cocotb.start_soon(capture())
+
+    expected = [[] for _ in tb.sink]
+
+    for k in range(32):
+        port = random.randrange(tb.ports)
+        # full words only
+        data = incrementing_payload(lanes * random.randint(1, 4))
+        expected[port].extend(data)
+
+        dut.select.value = port
+        await tb.source.send(AxiStreamFrame(data, tid=k, tdest=(port << dest_width) | k, tuser=k & 1))
+        await tb.source.wait()
+
+    for _ in range(64):
+        await RisingEdge(dut.clk)
+
+    for k in range(tb.ports):
+        assert m_bytes[k] == list(expected[k])
+
+
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
@@ -235,7 +383,7 @@ def incrementing_payload(length):
 
 
 if getattr(cocotb, "SIM_NAME", None):
-    ports = len(cocotb.top.axis_demux_inst.m_axis_tvalid)
+    ports = int(os.getenv("PORTS"))
 
     test_params = cocotb.parametrize(
         ("payload_lengths", [size_list]),
@@ -247,60 +395,73 @@ if getattr(cocotb, "SIM_NAME", None):
 
     run_test = cocotb.test(test_params(run_test))
 
-    run_test_switch = cocotb.test(
+    pause_params = cocotb.parametrize(
+        ("idle_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, random_pause]),
+    )
+
+    run_test_switch = cocotb.test(pause_params(run_test_switch))
+
+    run_test_tstrb = cocotb.test(
         cocotb.parametrize(
             ("idle_inserter", [None, cycle_pause]),
             ("backpressure_inserter", [None, random_pause]),
-        )(run_test_switch)
+            ("port", list(range(ports))),
+        )(run_test_tstrb)
     )
+
+    run_test_no_last = cocotb.test(pause_params(run_test_no_last))
 
 
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNOPTFLAT"],
+    "sv": [],
+}
 
-@pytest.mark.parametrize("tdest_route", [0, 1])
-@pytest.mark.parametrize("data_width", [8, 16, 32])
-@pytest.mark.parametrize("ports", range(1, 5))
-def test_axis_demux(request, ports, data_width, tdest_route):
+
+def run_sim(request, hdl, ports, parameters):
     dut = "axis_demux"
     wrapper = f"{dut}_wrap_{ports}"
     module = os.path.splitext(os.path.basename(__file__))[0]
     toplevel = wrapper
 
     # generate wrapper
-    wrapper_file = os.path.join(results_dir, f"{wrapper}.v")
+    wrapper_file = os.path.join(results_dir, f"{wrapper}.{hdl}")
     if not os.path.exists(wrapper_file):
         os.makedirs(results_dir, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, os.path.join(rtl_dir, f"{dut}_wrap.py"), "-p", f"{ports}"], cwd=results_dir
+            [sys.executable, os.path.join(rtl_dir, hdl, f"{dut}_wrap.py"), "-p", f"{ports}"], cwd=results_dir
         ).wait()
 
-    verilog_sources = [
-        wrapper_file,
-        os.path.join(rtl_dir, f"{dut}.v"),
-    ]
+    verilog_sources = [wrapper_file]
+    if hdl == "sv":
+        verilog_sources.append(os.path.join(rtl_dir, "if", "axis_if.sv"))
+    verilog_sources.append(os.path.join(rtl_dir, hdl, f"{dut}.{hdl}"))
 
-    parameters = {}
-
-    parameters["DATA_WIDTH"] = data_width
+    parameters.setdefault("DATA_WIDTH", 8)
     parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
-    parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
-    parameters["ID_ENABLE"] = 1
-    parameters["ID_WIDTH"] = 8
-    parameters["DEST_ENABLE"] = 1
-    parameters["M_DEST_WIDTH"] = 8
+    # sv wrapper: KEEP_WIDTH is a localparam
+    if hdl == "v":
+        parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
+    parameters.setdefault("ID_ENABLE", 1)
+    parameters.setdefault("ID_WIDTH", 8)
+    parameters.setdefault("DEST_ENABLE", 1)
+    parameters.setdefault("M_DEST_WIDTH", 8)
     parameters["S_DEST_WIDTH"] = parameters["M_DEST_WIDTH"] + (ports - 1).bit_length()
-    parameters["USER_ENABLE"] = 1
-    parameters["USER_WIDTH"] = 1
-    parameters["TDEST_ROUTE"] = tdest_route
+    parameters.setdefault("USER_ENABLE", 1)
+    parameters.setdefault("USER_WIDTH", 1)
+    parameters.setdefault("TDEST_ROUTE", 0)
 
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
@@ -314,7 +475,7 @@ def test_axis_demux(request, ports, data_width, tdest_route):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-UNOPTFLAT"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
@@ -327,3 +488,27 @@ def test_axis_demux(request, ports, data_width, tdest_route):
         results_xml=os.path.join(sim_build, "results.xml"),
         extra_env=extra_env,
     )
+
+
+@pytest.mark.parametrize("tdest_route", [0, 1])
+@pytest.mark.parametrize("data_width", [8, 16, 32])
+@pytest.mark.parametrize("ports", range(1, 5))
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_demux(request, hdl, ports, data_width, tdest_route):
+    run_sim(request, hdl, ports, {"DATA_WIDTH": data_width, "TDEST_ROUTE": tdest_route})
+
+
+# parameters only the sv variant has
+SV_CONFIGS = {
+    "strb": {"STRB_ENABLE": 1},
+    "strb_route": {"STRB_ENABLE": 1, "TDEST_ROUTE": 1},
+    "no_last": {"LAST_ENABLE": 0},
+    "no_last_route": {"LAST_ENABLE": 0, "TDEST_ROUTE": 1},
+}
+
+
+@pytest.mark.parametrize("config", SV_CONFIGS)
+@pytest.mark.parametrize("data_width", [8, 32])
+@pytest.mark.parametrize("ports", [1, 3])
+def test_axis_demux_sv(request, ports, data_width, config):
+    run_sim(request, "sv", ports, {"DATA_WIDTH": data_width, **SV_CONFIGS[config]})
