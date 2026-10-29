@@ -40,6 +40,7 @@ def generate(ports=4, name=None, output=None):
     t = Template("""/*
 
 Copyright (c) 2018-2021 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -124,7 +125,7 @@ module {{name}} #
      * Control
      */
     input  wire                  enable,
-    input  wire [{{cn-1}}:0]            select
+    input  wire [{{[cn,1]|max-1}}:0]            select
 );
 
 axis_mux #(

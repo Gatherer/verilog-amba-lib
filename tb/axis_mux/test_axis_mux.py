@@ -26,6 +26,7 @@ THE SOFTWARE.
 import itertools
 import logging
 import os
+import random
 import subprocess
 import sys
 
@@ -100,10 +101,16 @@ async def run_test(
     dut.enable.value = Immediate(1)
     dut.select.value = Immediate(port)
 
+    # traffic on other ports, must not pass
+    for k, source in enumerate(tb.source):
+        if k != port:
+            await source.send(AxiStreamFrame(incrementing_payload(4), tid=0xFF, tdest=0xFF))
+
     for test_data in [payload_data(x) for x in payload_lengths()]:
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id
         test_frame.tdest = cur_id
+        test_frame.tuser = cur_id & 1
 
         test_frames.append(test_frame)
         await tb.source[port].send(test_frame)
@@ -116,9 +123,16 @@ async def run_test(
         assert rx_frame.tdata == test_frame.tdata
         assert rx_frame.tid == test_frame.tid
         assert rx_frame.tdest == test_frame.tdest
-        assert not rx_frame.tuser
+        assert rx_frame.tuser == test_frame.tuser
+
+    for _ in range(16):
+        await RisingEdge(dut.clk)
 
     assert tb.sink.empty()
+
+    for k, source in enumerate(tb.source):
+        if k != port:
+            assert not source.idle()
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -148,8 +162,120 @@ async def run_test_tuser_assert(dut, port=0):
     await RisingEdge(dut.clk)
 
 
+async def run_test_enable(dut):
+    # no transfer while disabled or with out of range select
+
+    tb = TB(dut)
+
+    ports = len(tb.source)
+    sel_count = 2 ** len(dut.select)
+
+    await tb.reset()
+
+    test_frame = AxiStreamFrame(incrementing_payload(8), tid=1, tdest=1)
+    await tb.source[0].send(test_frame)
+
+    dut.enable.value = 0
+    dut.select.value = 0
+
+    for _ in range(16):
+        await RisingEdge(dut.clk)
+
+    assert tb.sink.empty()
+    assert not tb.source[0].idle()
+
+    if sel_count > ports:
+        dut.enable.value = 1
+        dut.select.value = ports
+
+        for _ in range(16):
+            await RisingEdge(dut.clk)
+
+        assert tb.sink.empty()
+        assert not tb.source[0].idle()
+
+    dut.enable.value = 1
+    dut.select.value = 0
+
+    rx_frame = await tb.sink.recv()
+
+    assert rx_frame.tdata == test_frame.tdata
+    assert rx_frame.tid == test_frame.tid
+
+    assert tb.sink.empty()
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
+async def run_test_switch(dut, idle_inserter=None, backpressure_inserter=None):
+    # random port per frame, enable toggling, select change mid frame
+
+    tb = TB(dut)
+
+    ports = len(tb.source)
+    sel_count = 2 ** len(dut.select)
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    async def toggle_enable():
+        while True:
+            dut.enable.value = int(random.random() < 0.8)
+            await RisingEdge(dut.clk)
+
+    enable_cr = cocotb.start_soon(toggle_enable())
+
+    test_frames = []
+
+    for k in range(64):
+        port = random.randrange(ports)
+        length = random.randint(1, 3 * len(tb.source[port].bus.tkeep))
+        test_frame = AxiStreamFrame(incrementing_payload(length))
+        test_frame.tid = k
+        test_frame.tdest = port
+        test_frame.tuser = k & 1
+
+        test_frames.append(test_frame)
+
+        dut.select.value = port
+        await tb.source[port].send(test_frame)
+
+        # wait for first beat, then change select, must be ignored until next frame
+        s_tvalid = getattr(dut, f"s{port:02d}_axis_tvalid")
+        s_tready = getattr(dut, f"s{port:02d}_axis_tready")
+        while True:
+            await RisingEdge(dut.clk)
+            if s_tvalid.value and s_tready.value:
+                break
+        dut.select.value = random.randrange(sel_count)
+        await tb.source[port].wait()
+
+    for test_frame in test_frames:
+        rx_frame = await tb.sink.recv()
+
+        assert rx_frame.tdata == test_frame.tdata
+        assert rx_frame.tid == test_frame.tid
+        assert rx_frame.tdest == test_frame.tdest
+        assert rx_frame.tuser == test_frame.tuser
+
+    for _ in range(16):
+        await RisingEdge(dut.clk)
+
+    assert tb.sink.empty()
+
+    enable_cr.cancel()
+
+
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
+
+
+def random_pause():
+    while True:
+        yield int(random.random() < 0.5)
 
 
 def size_list():
@@ -169,11 +295,20 @@ if getattr(cocotb, "SIM_NAME", None):
         ("payload_lengths", [size_list]),
         ("payload_data", [incrementing_payload]),
         ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
         ("port", list(range(ports))),
     )
 
     run_test = cocotb.test(test_params(run_test))
+
+    run_test_enable = cocotb.test(run_test_enable)
+
+    run_test_switch = cocotb.test(
+        cocotb.parametrize(
+            ("idle_inserter", [None, cycle_pause]),
+            ("backpressure_inserter", [None, random_pause]),
+        )(run_test_switch)
+    )
 
     test_params = cocotb.parametrize(
         ("port", list(range(ports))),
@@ -194,7 +329,7 @@ if tests_dir not in sys.path:
 
 
 @pytest.mark.parametrize("data_width", [8, 16, 32])
-@pytest.mark.parametrize("ports", [1, 4])
+@pytest.mark.parametrize("ports", range(1, 5))
 def test_axis_mux(request, ports, data_width):
     dut = "axis_mux"
     wrapper = f"{dut}_wrap_{ports}"
