@@ -106,6 +106,7 @@ async def run_test(
         test_frame = AxiStreamFrame(test_data)
         test_frame.tid = cur_id | (port << src_shift)
         test_frame.tdest = cur_id
+        test_frame.tuser = cur_id & 1
 
         test_frames.append(test_frame)
         await tb.source[port].send(test_frame)
@@ -120,7 +121,7 @@ async def run_test(
         assert ((rx_frame.tid >> src_shift) & src_mask) == port
         assert (rx_frame.tid >> id_width) == port
         assert rx_frame.tdest == test_frame.tdest
-        assert not rx_frame.tuser
+        assert rx_frame.tuser == test_frame.tuser
 
     assert tb.sink.empty()
 
@@ -241,6 +242,7 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
             test_frame = AxiStreamFrame(test_data)
             test_frame.tid = cur_id | (p << src_shift)
             test_frame.tdest = cur_id
+            test_frame.tuser = cur_id & 1
 
             test_frames[p].append(test_frame)
             await tb.source[p].send(test_frame)
@@ -263,6 +265,132 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
         assert (rx_frame.tid & id_mask) == test_frame.tid
         assert ((rx_frame.tid >> src_shift) & src_mask) == (rx_frame.tid >> id_width)
         assert rx_frame.tdest == test_frame.tdest
+        assert rx_frame.tuser == test_frame.tuser
+
+    assert tb.sink.empty()
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
+async def run_test_arb_order(dut, backpressure_inserter=None):
+    # all ports busy, check grant order of priority and round robin arbiter
+
+    tb = TB(dut)
+
+    ports = len(tb.source)
+    byte_lanes = tb.source[0].byte_lanes
+    id_width = len(tb.source[0].bus.tid)
+    src_shift = id_width - (ports - 1).bit_length()
+
+    round_robin = int(os.environ.get("PARAM_ARB_TYPE_ROUND_ROBIN", "0"))
+    lsb_high = int(os.environ.get("PARAM_ARB_LSB_HIGH_PRIORITY", "1"))
+
+    count = 4
+    test_data = incrementing_payload(byte_lanes * 4)
+
+    await tb.reset()
+
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    for p in range(ports):
+        for k in range(count):
+            await tb.source[p].send(AxiStreamFrame(test_data, tid=k | (p << src_shift)))
+
+    port_order = list(range(ports)) if lsb_high else list(range(ports - 1, -1, -1))
+
+    if round_robin:
+        expected = [(p, k) for k in range(count) for p in port_order]
+    else:
+        expected = [(p, k) for p in port_order for k in range(count)]
+
+    for p, k in expected:
+        rx_frame = await tb.sink.recv()
+
+        assert rx_frame.tdata == test_data
+        assert (rx_frame.tid >> id_width) == p
+        assert (rx_frame.tid & (2**src_shift - 1)) == k
+
+    assert tb.sink.empty()
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
+async def run_test_no_tlast(dut, idle_inserter=None, backpressure_inserter=None):
+    # LAST_ENABLE=0: per beat arbitration, m_axis_tlast fixed high
+
+    tb = TB(dut)
+
+    ports = len(tb.source)
+    byte_lanes = tb.source[0].byte_lanes
+    id_width = len(tb.source[0].bus.tid)
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    tx_data = [bytearray() for _ in range(ports)]
+    rx_data = [bytearray() for _ in range(ports)]
+
+    for p in range(ports):
+        for _ in range(16):
+            # full beats only, every beat is an output frame
+            test_data = bytearray(random.randrange(256) for _ in range(random.randint(1, 8) * byte_lanes))
+            tx_data[p].extend(test_data)
+            await tb.source[p].send(AxiStreamFrame(test_data, tid=p))
+
+    total = sum(len(d) for d in tx_data)
+    last_port = None
+    switches = 0
+
+    while sum(len(d) for d in rx_data) < total:
+        rx_frame = await tb.sink.recv()
+
+        assert len(rx_frame.tdata) == byte_lanes
+
+        p = rx_frame.tid >> id_width
+        assert (rx_frame.tid & (2**id_width - 1)) == p
+
+        rx_data[p].extend(rx_frame.tdata)
+
+        if last_port is not None and p != last_port:
+            switches += 1
+        last_port = p
+
+    assert rx_data == tx_data
+
+    # beats of different ports interleave
+    if ports > 1:
+        assert switches > 0
+
+    assert tb.sink.empty()
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
+async def run_test_disabled(dut, port=0):
+    # ID/DEST/USER disabled: outputs tied to zero
+
+    tb = TB(dut)
+
+    await tb.reset()
+
+    test_frames = []
+
+    for k in range(4):
+        test_frame = AxiStreamFrame(incrementing_payload(16 + k), tid=0xA5, tdest=0x5A, tuser=1)
+        test_frames.append(test_frame)
+        await tb.source[port].send(test_frame)
+
+    for test_frame in test_frames:
+        rx_frame = await tb.sink.recv()
+
+        assert rx_frame.tdata == test_frame.tdata
+        assert rx_frame.tid == 0
+        assert rx_frame.tdest == 0
         assert not rx_frame.tuser
 
     assert tb.sink.empty()
@@ -273,6 +401,11 @@ async def run_stress_test(dut, idle_inserter=None, backpressure_inserter=None):
 
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
+
+
+def random_pause():
+    while True:
+        yield int(random.random() < 0.5)
 
 
 def size_list():
@@ -288,31 +421,58 @@ def incrementing_payload(length):
 if getattr(cocotb, "SIM_NAME", None):
     ports = len(cocotb.top.axis_arb_mux_inst.s_axis_tvalid)
 
-    test_params = cocotb.parametrize(
-        ("payload_lengths", [size_list]),
-        ("payload_data", [incrementing_payload]),
-        ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
-        ("port", list(range(ports))),
-    )
+    id_enable = int(os.environ.get("PARAM_ID_ENABLE", "1"))
+    last_enable = int(os.environ.get("PARAM_LAST_ENABLE", "1"))
+    lsb_high = int(os.environ.get("PARAM_ARB_LSB_HIGH_PRIORITY", "1"))
 
-    run_test = cocotb.test(test_params(run_test))
+    if not id_enable:
+        test_params = cocotb.parametrize(
+            ("port", list(range(ports))),
+        )
 
-    test_params = cocotb.parametrize(
-        ("port", list(range(ports))),
-    )
+        run_test_disabled = cocotb.test(test_params(run_test_disabled))
 
-    run_test_tuser_assert = cocotb.test(test_params(run_test_tuser_assert))
+    elif not last_enable:
+        test_params = cocotb.parametrize(
+            ("idle_inserter", [None, cycle_pause]),
+            ("backpressure_inserter", [None, random_pause]),
+        )
 
-    if ports > 1:
-        run_arb_test = cocotb.test(run_arb_test)
+        run_test_no_tlast = cocotb.test(test_params(run_test_no_tlast))
 
-    test_params = cocotb.parametrize(
-        ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
-    )
+    else:
+        test_params = cocotb.parametrize(
+            ("payload_lengths", [size_list]),
+            ("payload_data", [incrementing_payload]),
+            ("idle_inserter", [None, cycle_pause]),
+            ("backpressure_inserter", [None, cycle_pause, random_pause]),
+            ("port", list(range(ports))),
+        )
 
-    run_stress_test = cocotb.test(test_params(run_stress_test))
+        run_test = cocotb.test(test_params(run_test))
+
+        test_params = cocotb.parametrize(
+            ("port", list(range(ports))),
+        )
+
+        run_test_tuser_assert = cocotb.test(test_params(run_test_tuser_assert))
+
+        # expected order assumes port 0 has highest priority
+        if ports > 1 and lsb_high:
+            run_arb_test = cocotb.test(run_arb_test)
+
+        test_params = cocotb.parametrize(
+            ("backpressure_inserter", [None, random_pause]),
+        )
+
+        run_test_arb_order = cocotb.test(test_params(run_test_arb_order))
+
+        test_params = cocotb.parametrize(
+            ("idle_inserter", [None, cycle_pause]),
+            ("backpressure_inserter", [None, cycle_pause, random_pause]),
+        )
+
+        run_stress_test = cocotb.test(test_params(run_stress_test))
 
 
 # cocotb runner
@@ -341,8 +501,29 @@ def process_f_files(files):
 
 @pytest.mark.parametrize("round_robin", [0, 1])
 @pytest.mark.parametrize("data_width", [8, 16, 32])
-@pytest.mark.parametrize("ports", [1, 4])
+@pytest.mark.parametrize("ports", range(1, 5))
 def test_axis_arb_mux(request, ports, data_width, round_robin):
+    run_sim(request, ports, data_width, round_robin)
+
+
+# msb priority, no tlast (per beat arbitration), id/dest/user disabled
+@pytest.mark.parametrize(
+    ("ports", "data_width", "round_robin", "lsb_high", "last_enable", "sig_enable"),
+    [
+        (2, 8, 0, 0, 1, 1),
+        (4, 8, 0, 0, 1, 1),
+        (4, 8, 1, 0, 1, 1),
+        (1, 8, 0, 1, 0, 1),
+        (3, 8, 1, 1, 0, 1),
+        (3, 32, 0, 1, 0, 1),
+        (2, 16, 0, 1, 1, 0),
+    ],
+)
+def test_axis_arb_mux_cfg(request, ports, data_width, round_robin, lsb_high, last_enable, sig_enable):
+    run_sim(request, ports, data_width, round_robin, lsb_high, last_enable, sig_enable)
+
+
+def run_sim(request, ports, data_width, round_robin, lsb_high=1, last_enable=1, sig_enable=1):
     dut = "axis_arb_mux"
     wrapper = f"{dut}_wrap_{ports}"
     module = os.path.splitext(os.path.basename(__file__))[0]
@@ -368,17 +549,17 @@ def test_axis_arb_mux(request, ports, data_width, round_robin):
     parameters["DATA_WIDTH"] = data_width
     parameters["KEEP_ENABLE"] = int(parameters["DATA_WIDTH"] > 8)
     parameters["KEEP_WIDTH"] = (parameters["DATA_WIDTH"] + 7) // 8
-    parameters["ID_ENABLE"] = 1
+    parameters["ID_ENABLE"] = sig_enable
     parameters["S_ID_WIDTH"] = 8
     parameters["M_ID_WIDTH"] = parameters["S_ID_WIDTH"] + (ports - 1).bit_length()
-    parameters["DEST_ENABLE"] = 1
+    parameters["DEST_ENABLE"] = sig_enable
     parameters["DEST_WIDTH"] = 8
-    parameters["USER_ENABLE"] = 1
+    parameters["USER_ENABLE"] = sig_enable
     parameters["USER_WIDTH"] = 1
-    parameters["LAST_ENABLE"] = 1
-    parameters["UPDATE_TID"] = 1
+    parameters["LAST_ENABLE"] = last_enable
+    parameters["UPDATE_TID"] = sig_enable
     parameters["ARB_TYPE_ROUND_ROBIN"] = round_robin
-    parameters["ARB_LSB_HIGH_PRIORITY"] = 1
+    parameters["ARB_LSB_HIGH_PRIORITY"] = lsb_high
 
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
