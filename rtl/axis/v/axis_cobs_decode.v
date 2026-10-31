@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2016-2018 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -61,23 +62,24 @@ localparam [1:0]
     STATE_SEGMENT = 2'd1,
     STATE_NEXT_SEGMENT = 2'd2;
 
-reg [1:0] state_reg = STATE_IDLE, state_next;
+reg [1:0] state_reg, state_next;
 
-reg [7:0] count_reg = 8'd0, count_next;
-reg suppress_zero_reg = 1'b0, suppress_zero_next;
+reg       temp_tvalid_reg, temp_tvalid_next;
 
-reg [7:0] temp_tdata_reg = 8'd0, temp_tdata_next;
-reg temp_tvalid_reg = 1'b0, temp_tvalid_next;
+// loaded before use, no reset
+reg [7:0] count_reg, count_next;
+reg       suppress_zero_reg, suppress_zero_next;
+reg [7:0] temp_tdata_reg, temp_tdata_next;
 
 // internal datapath
 reg [7:0] m_axis_tdata_int;
 reg       m_axis_tvalid_int;
-reg       m_axis_tready_int_reg = 1'b0;
+reg       m_axis_tready_int_reg;
 reg       m_axis_tlast_int;
 reg       m_axis_tuser_int;
 wire      m_axis_tready_int_early;
 
-reg s_axis_tready_reg = 1'b0, s_axis_tready_next;
+reg s_axis_tready_reg, s_axis_tready_next;
 
 assign s_axis_tready = s_axis_tready_reg;
 
@@ -111,9 +113,10 @@ always @* begin
             if (s_axis_tready && s_axis_tvalid) begin
                 // valid input data
                 // skip any leading zeros
-                if (s_axis_tdata != 8'd0) begin
+                // code byte with tlast has no data, drop frame
+                if (s_axis_tdata != 8'd0 && !s_axis_tlast) begin
                     // store count value and zero suppress
-                    count_next = s_axis_tdata-1;
+                    count_next = s_axis_tdata - 8'd1;
                     suppress_zero_next = (s_axis_tdata == 8'd255);
                     s_axis_tready_next = m_axis_tready_int_early;
                     if (s_axis_tdata == 8'd1) begin
@@ -143,7 +146,7 @@ always @* begin
                 m_axis_tdata_int = temp_tdata_reg;
                 m_axis_tvalid_int = temp_tvalid_reg;
                 // decrement count
-                count_next = count_reg - 1;
+                count_next = count_reg - 8'd1;
                 if (s_axis_tdata == 8'd0) begin
                     // got a zero byte in a frame - mark it as an error and re-sync
                     temp_tvalid_next = 1'b0;
@@ -183,15 +186,18 @@ always @* begin
 
             if (s_axis_tready && s_axis_tvalid) begin
                 // valid input data
-                // store zero in temp if not suppressed
-                temp_tdata_next = 8'd0;
-                temp_tvalid_next = !suppress_zero_reg;
-                // move temp to output
                 m_axis_tdata_int = temp_tdata_reg;
-                m_axis_tvalid_int = temp_tvalid_reg;
+                if (!suppress_zero_reg) begin
+                    // store zero in temp, move temp to output
+                    temp_tdata_next = 8'd0;
+                    temp_tvalid_next = 1'b1;
+                    m_axis_tvalid_int = temp_tvalid_reg;
+                end
+                // zero suppressed: keep last byte in temp, it may get tlast
                 if (s_axis_tdata == 8'd0) begin
                     // got a zero byte delineating the end of the frame, so mark as such and re-sync
                     temp_tvalid_next = 1'b0;
+                    m_axis_tvalid_int = temp_tvalid_reg;
                     m_axis_tuser_int = s_axis_tuser;
                     m_axis_tlast_int = 1'b1;
                     s_axis_tready_next = 1'b1;
@@ -211,7 +217,7 @@ always @* begin
                     end
                 end else begin
                     // otherwise, store count value and zero suppress
-                    count_next = s_axis_tdata-1;
+                    count_next = s_axis_tdata - 8'd1;
                     suppress_zero_next = (s_axis_tdata == 8'd255);
                     s_axis_tready_next = m_axis_tready_int_early;
                     if (s_axis_tdata == 8'd1) begin
@@ -225,6 +231,9 @@ always @* begin
             end else begin
                 state_next = STATE_NEXT_SEGMENT;
             end
+        end
+        default: begin
+            state_next = STATE_IDLE;
         end
     endcase
 end
@@ -247,16 +256,18 @@ always @(posedge clk) begin
     end
 end
 
-// output datapath logic
-reg [7:0] m_axis_tdata_reg = 8'd0;
-reg       m_axis_tvalid_reg = 1'b0, m_axis_tvalid_next;
-reg       m_axis_tlast_reg = 1'b0;
-reg       m_axis_tuser_reg = 1'b0;
+// output control registers
+reg m_axis_tvalid_reg, m_axis_tvalid_next;
+reg temp_m_axis_tvalid_reg, temp_m_axis_tvalid_next;
 
-reg [7:0] temp_m_axis_tdata_reg = 8'd0;
-reg       temp_m_axis_tvalid_reg = 1'b0, temp_m_axis_tvalid_next;
-reg       temp_m_axis_tlast_reg = 1'b0;
-reg       temp_m_axis_tuser_reg = 1'b0;
+// output datapath registers, no reset
+reg [7:0] m_axis_tdata_reg;
+reg       m_axis_tlast_reg;
+reg       m_axis_tuser_reg;
+
+reg [7:0] temp_m_axis_tdata_reg;
+reg       temp_m_axis_tlast_reg;
+reg       temp_m_axis_tuser_reg;
 
 // datapath control
 reg store_axis_int_to_output;
@@ -304,7 +315,15 @@ always @(posedge clk) begin
     m_axis_tready_int_reg <= m_axis_tready_int_early;
     temp_m_axis_tvalid_reg <= temp_m_axis_tvalid_next;
 
-    // datapath
+    if (rst) begin
+        m_axis_tvalid_reg <= 1'b0;
+        m_axis_tready_int_reg <= 1'b0;
+        temp_m_axis_tvalid_reg <= 1'b0;
+    end
+end
+
+// datapath
+always @(posedge clk) begin
     if (store_axis_int_to_output) begin
         m_axis_tdata_reg <= m_axis_tdata_int;
         m_axis_tlast_reg <= m_axis_tlast_int;
@@ -319,12 +338,6 @@ always @(posedge clk) begin
         temp_m_axis_tdata_reg <= m_axis_tdata_int;
         temp_m_axis_tlast_reg <= m_axis_tlast_int;
         temp_m_axis_tuser_reg <= m_axis_tuser_int;
-    end
-
-    if (rst) begin
-        m_axis_tvalid_reg <= 1'b0;
-        m_axis_tready_int_reg <= 1'b0;
-        temp_m_axis_tvalid_reg <= 1'b0;
     end
 end
 
