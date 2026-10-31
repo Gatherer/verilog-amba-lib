@@ -30,12 +30,22 @@ import random
 import sys
 
 import cocotb
+import pytest
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge
 from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
+
+# sv only: s_axis without tlast/tuser, disabled inputs are ignored
+NO_LAST = not int(os.getenv("PARAM_S_LAST_ENABLE", "1"))
+NO_USER = not int(os.getenv("PARAM_S_USER_ENABLE", "1"))
+
+
+def terminate(enc):
+    # without tlast frames end at the zero delimiter
+    return enc + b"\x00" if NO_LAST else enc
 
 
 def cobs_encode(block):
@@ -215,8 +225,10 @@ async def run_test_long(dut, framing=None, backpressure_inserter=None):
         if framing == "zero":
             enc += b"\x00"
         await tb.source.send(AxiStreamFrame(enc))
-        # empty frames, no output
+        # empty frames, no output, code byte only needs tlast
         for empty in [b"\x01", b"\x01\x00", b"\x00", b"\x00\x00"]:
+            if NO_LAST and not empty.endswith(b"\x00"):
+                continue
             await tb.source.send(AxiStreamFrame(empty))
 
     for test_data in test_frames:
@@ -245,23 +257,28 @@ async def run_test_error(dut, idle_inserter=None, backpressure_inserter=None):
     enc = cobs_encode(data)  # 03 41 42 04 43 44 45 01
     enc_seg = enc[:-1]  # 03 41 42 04 43 44 45, ends in segment
 
+    # (frame, tuser, needs tlast, needs tuser)
     bad_frames = [
         # tuser on tlast beat, end in segment and at code byte
-        (enc_seg, [0] * (len(enc_seg) - 1) + [1]),
-        (enc, [0] * (len(enc) - 1) + [1]),
+        (enc_seg, [0] * (len(enc_seg) - 1) + [1], True, True),
+        (enc, [0] * (len(enc) - 1) + [1], True, True),
         # tuser on zero delimiter
-        (enc + b"\x00", [0] * len(enc) + [1]),
+        (enc + b"\x00", [0] * len(enc) + [1], False, True),
         # tlast inside segment
-        (enc[:2], None),
-        (enc[:5], None),
+        (enc[:2], None, True, False),
+        (enc[:5], None, True, False),
         # tlast on code byte with missing data
-        (enc[:4], None),
-        (enc[:-1] + b"\x03", None),
+        (enc[:4], None, True, False),
+        (enc[:-1] + b"\x03", None, True, False),
         # zero inside segment
-        (enc[:2] + b"\x00", None),
-        (enc[:5] + b"\x00", None),
+        (enc[:2] + b"\x00", None, False, False),
+        (enc[:5] + b"\x00", None, False, False),
         # zero after code byte
-        (enc[:4] + b"\x00", None),
+        (enc[:4] + b"\x00", None, False, False),
+    ]
+
+    bad_frames = [
+        (bad, tuser) for bad, tuser, last, user in bad_frames if not (last and NO_LAST) and not (user and NO_USER)
     ]
 
     good_frames = [prbs_payload(10), nonzero_incrementing_payload(300), zero_payload(3)]
@@ -269,7 +286,7 @@ async def run_test_error(dut, idle_inserter=None, backpressure_inserter=None):
     for bad, tuser in bad_frames:
         for good in good_frames:
             await tb.source.send(AxiStreamFrame(bad, tuser=tuser))
-            await tb.source.send(AxiStreamFrame(cobs_encode(good)))
+            await tb.source.send(AxiStreamFrame(terminate(cobs_encode(good))))
 
     for _ in bad_frames:
         for good in good_frames:
@@ -329,7 +346,7 @@ async def run_test_stall(dut):
     test_frames = [zero_payload(300), nonzero_incrementing_payload(300), prbs_payload(300)]
 
     for test_data in test_frames:
-        await tb.source.send(AxiStreamFrame(cobs_encode(test_data)))
+        await tb.source.send(AxiStreamFrame(terminate(cobs_encode(test_data))))
 
     for _ in range(200):
         await RisingEdge(dut.clk)
@@ -358,7 +375,7 @@ async def run_test_reset(dut):
 
     tb.set_backpressure_generator(cycle_pause)
 
-    await tb.source.send(AxiStreamFrame(cobs_encode(prbs_payload(600))))
+    await tb.source.send(AxiStreamFrame(terminate(cobs_encode(prbs_payload(600)))))
 
     for _ in range(300):
         await RisingEdge(dut.clk)
@@ -371,7 +388,7 @@ async def run_test_reset(dut):
     test_frames = [prbs_payload(x) for x in [1, 8, 254, 300]]
 
     for test_data in test_frames:
-        await tb.source.send(AxiStreamFrame(cobs_encode(test_data)))
+        await tb.source.send(AxiStreamFrame(terminate(cobs_encode(test_data))))
 
     for test_data in test_frames:
         rx_frame = await tb.sink.recv()
@@ -423,7 +440,7 @@ if getattr(cocotb, "SIM_NAME", None):
             "payload_data",
             [zero_payload, nonzero_incrementing_payload, nonzero_incrementing_payload_zero_framed, prbs_payload],
         ),
-        ("framing", ["tlast", "zero", "stream"]),
+        ("framing", ["zero", "stream"] if NO_LAST else ["tlast", "zero", "stream"]),
         ("idle_inserter", [None, cycle_pause]),
         ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
@@ -432,7 +449,7 @@ if getattr(cocotb, "SIM_NAME", None):
 
     run_test_long = cocotb.test(
         cocotb.parametrize(
-            ("framing", ["tlast", "zero"]),
+            ("framing", ["zero"] if NO_LAST else ["tlast", "zero"]),
             ("backpressure_inserter", [None, random_pause]),
         )(run_test_long)
     )
@@ -444,7 +461,9 @@ if getattr(cocotb, "SIM_NAME", None):
         )(run_test_error)
     )
 
-    run_test_lone_code = cocotb.test(run_test_lone_code)
+    # code byte with tlast, needs tlast
+    if not NO_LAST:
+        run_test_lone_code = cocotb.test(run_test_lone_code)
 
     run_test_stall = cocotb.test(run_test_stall)
 
@@ -454,24 +473,66 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
 if tests_dir not in sys.path:
     sys.path.insert(0, tests_dir)
 
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH"],
+    "sv": [],
+}
 
-def test_axis_cobs_decode(request):
+
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_cobs_decode(request, hdl):
+    run_sim(request, hdl)
+
+
+# configurations not covered by the main test
+EXTRA_CONFIGS = {
+    # sv only: s_axis without tlast and/or tuser
+    "no_last": {"S_LAST_ENABLE": 0},
+    "no_user": {"S_USER_ENABLE": 0},
+    "no_last_no_user": {"S_LAST_ENABLE": 0, "S_USER_ENABLE": 0},
+}
+
+# parameters only the sv variant has or supports
+SV_ONLY_CONFIGS = {"no_last", "no_user", "no_last_no_user"}
+
+
+@pytest.mark.parametrize("config", EXTRA_CONFIGS)
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_cobs_decode_extra(request, hdl, config):
+    if hdl == "v" and config in SV_ONLY_CONFIGS:
+        pytest.skip("sv only")
+    run_sim(request, hdl, **EXTRA_CONFIGS[config])
+
+
+def run_sim(request, hdl, **overrides):
+
     dut = "axis_cobs_decode"
     module = os.path.splitext(os.path.basename(__file__))[0]
-    toplevel = dut
 
-    verilog_sources = [
-        os.path.join(rtl_dir, f"{dut}.v"),
-    ]
+    if hdl == "sv":
+        toplevel = f"{dut}_wrap"
+        verilog_sources = [
+            os.path.join(rtl_dir, "if", "axis_if.sv"),
+            os.path.join(rtl_dir, hdl, f"{dut}.sv"),
+            os.path.join(tests_dir, f"{toplevel}.sv"),
+        ]
+    else:
+        toplevel = dut
+        verilog_sources = [
+            os.path.join(rtl_dir, hdl, f"{dut}.v"),
+        ]
 
     parameters = {}
+
+    parameters.update(overrides)
 
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
@@ -483,7 +544,7 @@ def test_axis_cobs_decode(request):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
