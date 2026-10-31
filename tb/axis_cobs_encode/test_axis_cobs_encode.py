@@ -26,6 +26,7 @@ THE SOFTWARE.
 import itertools
 import logging
 import os
+import random
 import sys
 
 import pytest
@@ -97,6 +98,11 @@ def cobs_decode(block):
     return bytes(dec)
 
 
+def cobs_encode_error(block):
+    # last byte dropped, open segment closed, invalid code 2 terminates frame
+    return cobs_encode(bytes(block[:-1]) + b"\x00")[:-1] + b"\x02"
+
+
 def prbs31(state=0x7FFFFFFF):
     while True:
         for _ in range(8):
@@ -105,6 +111,13 @@ def prbs31(state=0x7FFFFFFF):
             else:
                 state = (state & 0x3FFFFFFF) << 1
         yield state & 0xFF
+
+
+def frame_tuser(frame):
+    tuser = frame.tuser
+    if isinstance(tuser, list):
+        return tuser
+    return [tuser or 0] * len(frame.tdata)
 
 
 class TB:
@@ -153,7 +166,9 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     test_frames = [payload_data(x) for x in payload_lengths()]
 
     for test_data in test_frames:
-        test_frame = AxiStreamFrame(test_data)
+        # tuser on non-last beats must be ignored
+        tuser = [random.randrange(2) for _ in test_data[:-1]] + [0]
+        test_frame = AxiStreamFrame(test_data, tuser=tuser)
         await tb.source.send(test_frame)
 
     for test_data in test_frames:
@@ -165,7 +180,7 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
         else:
             assert rx_frame.tdata == cobs_encode(test_data)
             assert cobs_decode(rx_frame.tdata) == test_data
-        assert not rx_frame.tuser
+        assert not any(frame_tuser(rx_frame))
 
     assert tb.sink.empty()
 
@@ -173,12 +188,140 @@ async def run_test(dut, payload_lengths=None, payload_data=None, idle_inserter=N
     await RisingEdge(dut.clk)
 
 
+async def run_test_error(dut, idle_inserter=None, backpressure_inserter=None):
+    # tuser on last beat marks bad frame, mixed with good frames
+
+    tb = TB(dut)
+
+    append_zero = int(os.getenv("PARAM_APPEND_ZERO"))
+
+    await tb.reset()
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    test_frames = []
+    for length in [1, 2, 3, 253, 254, 255, 256, 508, 509]:
+        for payload in [nonzero_incrementing_payload, zero_payload, prbs_payload]:
+            for last in [0x00, 0x5A]:
+                for error in [1, 0]:
+                    test_data = payload(length)
+                    test_data[-1] = last
+                    test_frames.append((bytes(test_data), error))
+
+    for test_data, error in test_frames:
+        tuser = [0] * (len(test_data) - 1) + [error]
+        await tb.source.send(AxiStreamFrame(test_data, tuser=tuser))
+
+    for test_data, error in test_frames:
+        rx_frame = await tb.sink.recv()
+
+        if error:
+            expected = cobs_encode_error(test_data)
+        else:
+            expected = cobs_encode(test_data)
+
+        if append_zero:
+            expected += b"\x00"
+
+        assert rx_frame.tdata == expected
+        # error flag only on last beat
+        assert frame_tuser(rx_frame) == [0] * (len(expected) - 1) + [error]
+
+    assert tb.sink.empty()
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
+
+async def run_test_stall(dut):
+    # blocked sink, both FIFOs fill up, input must stall without loss
+
+    tb = TB(dut)
+
+    append_zero = int(os.getenv("PARAM_APPEND_ZERO"))
+
+    await tb.reset()
+
+    tb.sink.pause = True
+
+    # zero frame fills code FIFO, nonzero frame fills data FIFO
+    test_frames = [zero_payload(600), nonzero_incrementing_payload(600), prbs_payload(600)]
+
+    for test_data in test_frames:
+        await tb.source.send(AxiStreamFrame(test_data))
+
+    for _ in range(2000):
+        await RisingEdge(dut.clk)
+
+    assert not dut.s_axis_tready.value
+    assert not tb.source.idle()
+    assert tb.sink.empty()
+
+    tb.sink.pause = False
+
+    for test_data in test_frames:
+        rx_frame = await tb.sink.recv()
+
+        expected = cobs_encode(test_data)
+        if append_zero:
+            expected += b"\x00"
+
+        assert rx_frame.tdata == expected
+        assert not any(frame_tuser(rx_frame))
+
+    assert tb.sink.empty()
+
+
+async def run_test_reset(dut):
+    # reset in the middle of a frame, next frames must be clean
+
+    tb = TB(dut)
+
+    append_zero = int(os.getenv("PARAM_APPEND_ZERO"))
+
+    await tb.reset()
+
+    tb.set_backpressure_generator(cycle_pause)
+
+    await tb.source.send(AxiStreamFrame(prbs_payload(600)))
+
+    for _ in range(300):
+        await RisingEdge(dut.clk)
+
+    await tb.reset()
+
+    tb.source.clear()
+    tb.sink.clear()
+
+    test_frames = [prbs_payload(x) for x in [1, 8, 254, 300]]
+
+    for test_data in test_frames:
+        await tb.source.send(AxiStreamFrame(test_data))
+
+    for test_data in test_frames:
+        rx_frame = await tb.sink.recv()
+
+        expected = cobs_encode(test_data)
+        if append_zero:
+            expected += b"\x00"
+
+        assert rx_frame.tdata == expected
+
+    assert tb.sink.empty()
+
+
 def cycle_pause():
     return itertools.cycle([1, 1, 1, 0])
 
 
+def random_pause():
+    while True:
+        yield int(random.random() < 0.5)
+
+
 def size_list():
-    return list(range(1, 33)) + list(range(253, 259)) + [512] + [1] * 64
+    return list(range(1, 33)) + list(range(253, 259)) + [508, 509, 512] + [1] * 64
 
 
 def zero_payload(length):
@@ -210,10 +353,21 @@ if getattr(cocotb, "SIM_NAME", None):
             [zero_payload, nonzero_incrementing_payload, nonzero_incrementing_payload_zero_framed, prbs_payload],
         ),
         ("idle_inserter", [None, cycle_pause]),
-        ("backpressure_inserter", [None, cycle_pause]),
+        ("backpressure_inserter", [None, cycle_pause, random_pause]),
     )
 
     run_test = cocotb.test(test_params(run_test))
+
+    run_test_error = cocotb.test(
+        cocotb.parametrize(
+            ("idle_inserter", [None, cycle_pause]),
+            ("backpressure_inserter", [None, random_pause]),
+        )(run_test_error)
+    )
+
+    run_test_stall = cocotb.test(run_test_stall)
+
+    run_test_reset = cocotb.test(run_test_reset)
 
 
 # cocotb runner
@@ -266,7 +420,7 @@ def test_axis_cobs_encode(request, append_zero):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH", "-Wno-PINMISSING"],
+        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )

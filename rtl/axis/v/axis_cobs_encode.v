@@ -1,6 +1,7 @@
 /*
 
 Copyright (c) 2016-2018 Alex Forencich
+Copyright (c) 2026 Thomas Glatte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -66,27 +67,32 @@ localparam [1:0]
     INPUT_STATE_FINAL_ZERO = 2'd2,
     INPUT_STATE_APPEND_ZERO = 2'd3;
 
-reg [1:0] input_state_reg = INPUT_STATE_IDLE, input_state_next;
+reg [1:0] input_state_reg, input_state_next;
 
 localparam [0:0]
     OUTPUT_STATE_IDLE = 1'd0,
     OUTPUT_STATE_SEGMENT = 1'd1;
 
-reg [0:0] output_state_reg = OUTPUT_STATE_IDLE, output_state_next;
+reg [0:0] output_state_reg, output_state_next;
 
-reg [7:0] input_count_reg = 8'd0, input_count_next;
-reg [7:0] output_count_reg = 8'd0, output_count_next;
-reg fail_frame_reg = 1'b0, fail_frame_next;
+reg       fail_frame_reg, fail_frame_next;
+
+// counters, loaded before use, no reset
+reg [7:0] input_count_reg, input_count_next;
+reg [7:0] output_count_reg, output_count_next;
 
 // internal datapath
 reg [7:0] m_axis_tdata_int;
 reg       m_axis_tvalid_int;
-reg       m_axis_tready_int_reg = 1'b0;
+reg       m_axis_tready_int_reg;
 reg       m_axis_tlast_int;
 reg       m_axis_tuser_int;
 wire      m_axis_tready_int_early;
 
 reg s_axis_tready_mask;
+
+// both FIFOs can take a byte
+wire fifo_in_tready;
 
 reg [7:0] code_fifo_in_tdata;
 reg code_fifo_in_tvalid;
@@ -110,7 +116,8 @@ wire data_fifo_out_tvalid;
 wire data_fifo_out_tlast;
 reg data_fifo_out_tready;
 
-assign s_axis_tready = code_fifo_in_tready && data_fifo_in_tready && s_axis_tready_mask;
+assign fifo_in_tready = code_fifo_in_tready && data_fifo_in_tready;
+assign s_axis_tready = fifo_in_tready && s_axis_tready_mask;
 
 axis_fifo #(
     .DEPTH(256),
@@ -128,12 +135,12 @@ code_fifo_inst (
     .rst(rst),
     // AXI input
     .s_axis_tdata(code_fifo_in_tdata),
-    .s_axis_tkeep(0),
+    .s_axis_tkeep(1'b0),
     .s_axis_tvalid(code_fifo_in_tvalid),
     .s_axis_tready(code_fifo_in_tready),
     .s_axis_tlast(code_fifo_in_tlast),
-    .s_axis_tid(0),
-    .s_axis_tdest(0),
+    .s_axis_tid(8'd0),
+    .s_axis_tdest(8'd0),
     .s_axis_tuser(code_fifo_in_tuser),
     // AXI output
     .m_axis_tdata(code_fifo_out_tdata),
@@ -144,7 +151,12 @@ code_fifo_inst (
     .m_axis_tid(),
     .m_axis_tdest(),
     .m_axis_tuser(code_fifo_out_tuser),
+    // Pause
+    .pause_req(1'b0),
+    .pause_ack(),
     // Status
+    .status_depth(),
+    .status_depth_commit(),
     .status_overflow(),
     .status_bad_frame(),
     .status_good_frame()
@@ -165,13 +177,13 @@ data_fifo_inst (
     .rst(rst),
     // AXI input
     .s_axis_tdata(data_fifo_in_tdata),
-    .s_axis_tkeep(0),
+    .s_axis_tkeep(1'b0),
     .s_axis_tvalid(data_fifo_in_tvalid),
     .s_axis_tready(data_fifo_in_tready),
     .s_axis_tlast(data_fifo_in_tlast),
-    .s_axis_tid(0),
-    .s_axis_tdest(0),
-    .s_axis_tuser(0),
+    .s_axis_tid(8'd0),
+    .s_axis_tdest(8'd0),
+    .s_axis_tuser(1'b0),
     // AXI output
     .m_axis_tdata(data_fifo_out_tdata),
     .m_axis_tkeep(),
@@ -181,7 +193,12 @@ data_fifo_inst (
     .m_axis_tid(),
     .m_axis_tdest(),
     .m_axis_tuser(),
+    // Pause
+    .pause_req(1'b0),
+    .pause_ack(),
     // Status
+    .status_depth(),
+    .status_depth_commit(),
     .status_overflow(),
     .status_bad_frame(),
     .status_good_frame()
@@ -211,7 +228,7 @@ always @* begin
             s_axis_tready_mask = 1'b1;
             fail_frame_next = 1'b0;
 
-            if (s_axis_tready && s_axis_tvalid) begin
+            if (fifo_in_tready && s_axis_tvalid) begin
                 // valid input data
 
                 if (s_axis_tdata == 8'd0 || (s_axis_tlast && s_axis_tuser)) begin
@@ -257,7 +274,7 @@ always @* begin
             s_axis_tready_mask = 1'b1;
             fail_frame_next = 1'b0;
 
-            if (s_axis_tready && s_axis_tvalid) begin
+            if (fifo_in_tready && s_axis_tvalid) begin
                 // valid input data
 
                 if (s_axis_tdata == 8'd0 || (s_axis_tlast && s_axis_tuser)) begin
@@ -396,7 +413,7 @@ always @* begin
                 output_count_next = output_count_reg - 1;
                 m_axis_tvalid_int = 1'b1;
                 data_fifo_out_tready = 1'b1;
-                if (output_count_reg == 1'b1) begin
+                if (output_count_reg == 8'd1) begin
                     // done with segment, get a code byte next
                     output_state_next = OUTPUT_STATE_IDLE;
                 end else begin
@@ -421,19 +438,22 @@ always @(posedge clk) begin
     if (rst) begin
         input_state_reg <= INPUT_STATE_IDLE;
         output_state_reg <= OUTPUT_STATE_IDLE;
+        fail_frame_reg <= 1'b0;
     end
 end
 
-// output datapath logic
-reg [7:0] m_axis_tdata_reg = 8'd0;
-reg       m_axis_tvalid_reg = 1'b0, m_axis_tvalid_next;
-reg       m_axis_tlast_reg = 1'b0;
-reg       m_axis_tuser_reg = 1'b0;
+// output control registers
+reg m_axis_tvalid_reg, m_axis_tvalid_next;
+reg temp_m_axis_tvalid_reg, temp_m_axis_tvalid_next;
 
-reg [7:0] temp_m_axis_tdata_reg = 8'd0;
-reg       temp_m_axis_tvalid_reg = 1'b0, temp_m_axis_tvalid_next;
-reg       temp_m_axis_tlast_reg = 1'b0;
-reg       temp_m_axis_tuser_reg = 1'b0;
+// output datapath registers, no reset
+reg [7:0] m_axis_tdata_reg;
+reg       m_axis_tlast_reg;
+reg       m_axis_tuser_reg;
+
+reg [7:0] temp_m_axis_tdata_reg;
+reg       temp_m_axis_tlast_reg;
+reg       temp_m_axis_tuser_reg;
 
 // datapath control
 reg store_axis_int_to_output;
@@ -481,7 +501,15 @@ always @(posedge clk) begin
     m_axis_tready_int_reg <= m_axis_tready_int_early;
     temp_m_axis_tvalid_reg <= temp_m_axis_tvalid_next;
 
-    // datapath
+    if (rst) begin
+        m_axis_tvalid_reg <= 1'b0;
+        m_axis_tready_int_reg <= 1'b0;
+        temp_m_axis_tvalid_reg <= 1'b0;
+    end
+end
+
+// datapath
+always @(posedge clk) begin
     if (store_axis_int_to_output) begin
         m_axis_tdata_reg <= m_axis_tdata_int;
         m_axis_tlast_reg <= m_axis_tlast_int;
@@ -496,12 +524,6 @@ always @(posedge clk) begin
         temp_m_axis_tdata_reg <= m_axis_tdata_int;
         temp_m_axis_tlast_reg <= m_axis_tlast_int;
         temp_m_axis_tuser_reg <= m_axis_tuser_int;
-    end
-
-    if (rst) begin
-        m_axis_tvalid_reg <= 1'b0;
-        m_axis_tready_int_reg <= 1'b0;
-        temp_m_axis_tvalid_reg <= 1'b0;
     end
 end
 
