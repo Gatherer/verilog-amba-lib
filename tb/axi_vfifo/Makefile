@@ -21,7 +21,7 @@
 
 TOPLEVEL_LANG = verilog
 
-SIM ?= verilator
+SIM = verilator
 WAVES ?= 0
 
 # all generated files go to tb/results/<test>/
@@ -67,37 +67,17 @@ export PARAM_WRITE_MAX_BURST_LEN := $(shell expr $(PARAM_WRITE_FIFO_DEPTH) / 4 )
 export PARAM_READ_FIFO_DEPTH := 128
 export PARAM_READ_MAX_BURST_LEN := $(PARAM_WRITE_MAX_BURST_LEN)
 
-ifeq ($(SIM), icarus)
-	COCOTB_PLUSARGS += -fst
+COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-UNSIGNED
 
-	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(COCOTB_TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
+COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-G$(subst PARAM_,,$(v))=$($(v)))
 
-	ifeq ($(WAVES), 1)
-		VERILOG_SOURCES += $(RESULTS_DIR)/iverilog_dump.v
-		COMPILE_ARGS += -s iverilog_dump
-	endif
-else ifeq ($(SIM), verilator)
-	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH -Wno-CASEINCOMPLETE -Wno-UNSIGNED
-
-	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-G$(subst PARAM_,,$(v))=$($(v)))
-
-	ifeq ($(WAVES), 1)
-		COMPILE_ARGS += --trace-fst
-		SIM_ARGS += --trace --trace-file $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
-	endif
+ifeq ($(WAVES), 1)
+	COMPILE_ARGS += --trace-fst
+	SIM_ARGS += --trace --trace-file $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
 endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
-$(RESULTS_DIR)/iverilog_dump.v: | $(SIM_BUILD)
-	echo 'module iverilog_dump();' > $@
-	echo 'initial begin' >> $@
-	echo '    $$dumpfile("$(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst");' >> $@
-	echo '    $$dumpvars(0, $(COCOTB_TOPLEVEL));' >> $@
-	echo 'end' >> $@
-	echo 'endmodule' >> $@
-
 clean::
-	@rm -rf $(RESULTS_DIR)/iverilog_dump.v
 	@rm -rf $(RESULTS_DIR)/$(COCOTB_TOPLEVEL).fst
 	@rm -rf $(RESULTS_DIR)/__pycache__
