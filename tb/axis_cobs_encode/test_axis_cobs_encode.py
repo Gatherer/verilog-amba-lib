@@ -39,6 +39,9 @@ from cocotb_tools.runner import get_runner
 
 from cocotbext.axi import AxiStreamBus, AxiStreamFrame, AxiStreamSink, AxiStreamSource
 
+# sv only: s_axis without tuser, error marker is ignored
+NO_USER = not int(os.getenv("PARAM_S_USER_ENABLE", "1"))
+
 
 def cobs_encode(block):
     block = bytearray(block)
@@ -216,6 +219,8 @@ async def run_test_error(dut, idle_inserter=None, backpressure_inserter=None):
     for test_data, error in test_frames:
         rx_frame = await tb.sink.recv()
 
+        error = error and not NO_USER
+
         if error:
             expected = cobs_encode_error(test_data)
         else:
@@ -373,7 +378,7 @@ if getattr(cocotb, "SIM_NAME", None):
 # cocotb runner
 
 tests_dir = os.path.abspath(os.path.dirname(__file__))
-rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis", "v"))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "rtl", "axis"))
 results_dir = os.path.abspath(os.path.join(tests_dir, "..", "results", os.path.basename(tests_dir)))
 
 # simulation runs in results_dir, keep test module importable for cocotb
@@ -394,21 +399,60 @@ def process_f_files(files):
     return list(lst.values())
 
 
+# HDL variants: verilator build args
+hdl_variants = {
+    "v": ["-Wno-SELRANGE", "-Wno-WIDTH"],
+    "sv": [],
+}
+
+
 @pytest.mark.parametrize("append_zero", [0, 1])
-def test_axis_cobs_encode(request, append_zero):
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_cobs_encode(request, hdl, append_zero):
+    run_sim(request, hdl, APPEND_ZERO=append_zero)
+
+
+# configurations not covered by the main test
+EXTRA_CONFIGS = {
+    # sv only: s_axis without tuser
+    "no_user": {"S_USER_ENABLE": 0},
+    "no_user_no_zero": {"S_USER_ENABLE": 0, "APPEND_ZERO": 0},
+}
+
+# parameters only the sv variant has or supports
+SV_ONLY_CONFIGS = {"no_user", "no_user_no_zero"}
+
+
+@pytest.mark.parametrize("config", EXTRA_CONFIGS)
+@pytest.mark.parametrize("hdl", list(hdl_variants))
+def test_axis_cobs_encode_extra(request, hdl, config):
+    if hdl == "v" and config in SV_ONLY_CONFIGS:
+        pytest.skip("sv only")
+    run_sim(request, hdl, **EXTRA_CONFIGS[config])
+
+
+def run_sim(request, hdl, **overrides):
+
     dut = "axis_cobs_encode"
     module = os.path.splitext(os.path.basename(__file__))[0]
-    toplevel = dut
 
-    verilog_sources = [
-        os.path.join(rtl_dir, f"{dut}.f"),
-    ]
-
-    verilog_sources = process_f_files(verilog_sources)
+    if hdl == "sv":
+        toplevel = f"{dut}_wrap"
+        verilog_sources = [
+            os.path.join(rtl_dir, "if", "axis_if.sv"),
+            os.path.join(rtl_dir, hdl, "axis_fifo.sv"),
+            os.path.join(rtl_dir, hdl, f"{dut}.sv"),
+            os.path.join(tests_dir, f"{toplevel}.sv"),
+        ]
+    else:
+        toplevel = dut
+        verilog_sources = process_f_files([os.path.join(rtl_dir, hdl, f"{dut}.f")])
 
     parameters = {}
 
-    parameters["APPEND_ZERO"] = append_zero
+    parameters["APPEND_ZERO"] = 1
+
+    parameters.update(overrides)
 
     extra_env = {f"PARAM_{k}": str(v) for k, v in parameters.items()}
 
@@ -420,7 +464,7 @@ def test_axis_cobs_encode(request, append_zero):
         sources=verilog_sources,
         hdl_toplevel=toplevel,
         parameters=parameters,
-        build_args=["-Wno-SELRANGE", "-Wno-WIDTH"],
+        build_args=hdl_variants[hdl],
         build_dir=sim_build,
         timescale=("1ns", "1ps"),
     )
