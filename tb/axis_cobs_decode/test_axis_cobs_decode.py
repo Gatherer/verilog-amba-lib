@@ -29,8 +29,9 @@ import os
 import random
 import sys
 
-import cocotb
 import pytest
+
+import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import Immediate
 from cocotb.triggers import RisingEdge

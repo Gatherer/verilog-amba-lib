@@ -219,9 +219,9 @@ async def run_test_error(dut, idle_inserter=None, backpressure_inserter=None):
     for test_data, error in test_frames:
         rx_frame = await tb.sink.recv()
 
-        error = error and not NO_USER
+        exp_error = error and not NO_USER
 
-        if error:
+        if exp_error:
             expected = cobs_encode_error(test_data)
         else:
             expected = cobs_encode(test_data)
@@ -231,7 +231,7 @@ async def run_test_error(dut, idle_inserter=None, backpressure_inserter=None):
 
         assert rx_frame.tdata == expected
         # error flag only on last beat
-        assert frame_tuser(rx_frame) == [0] * (len(expected) - 1) + [error]
+        assert frame_tuser(rx_frame) == [0] * (len(expected) - 1) + [exp_error]
 
     assert tb.sink.empty()
 
